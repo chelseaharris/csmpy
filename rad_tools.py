@@ -1,8 +1,8 @@
 # A set of functions useful for simple radiation calculations
-
 import numpy             as np
 import Const             as C
 #import scipy.optimize    as optim
+from scipy.special import gamma as gamfunc
 
 def get_ioniz_en(A, i):
 # Get the ionization energy (in eV) for ion
@@ -171,6 +171,36 @@ class SynchrotronCalculator(object):
 
         return j_nu
 
+
+    def calc_alpha( self, a_nu_Hz, a_ray, a_fNT=1. ):
+        """
+        Calculate the extinction coefficient for synchrotron self-absorption
+        """
+        SINA = 2.0/C.PI
+        GG = gamfunc((3*self.p + 2)/12.) * gamfunc((3*self.p + 22)/12.)
+
+        C_E = C.M_E_ERG**(self.p-1) *self.calc_C(a_ray, a_fNT)
+
+        Bmag = np.sqrt(8*C.PI*self.eps_e*a_ray.u_gas)
+
+        # R&L Eqn 6.53
+        al = np.sqrt(3)*C.E_ESU**3 / (8*C.PI*C.M_E)
+        al*= (3*C.E_ESU/(2*C.PI *C.M_E**3 *C.C_LIGHT**5))**(0.5*self.p)
+        al*= C_E *(Bmag*SINA)**(0.5*(self.p + 2))
+        al*= GG
+
+        fin_al = np.outer( a_nu_Hz**(-0.5*(self.p + 4)), al )
+
+        return fin_al
+
+    
+    def calc_tau( self, a_nu_Hz, a_ray, a_fNT=1. ):
+        al = self.calc_alpha( a_nu_Hz, a_ray, a_fNT )
+        dr = a_ray.r2 - a_ray.r1
+
+        tau = al.dot(dr)
+
+        return tau
 
 
     def calc_L_nu( self, a_nu_Hz, a_ray, a_fNT=1. ):

@@ -27,6 +27,7 @@ class Ray(object):
                    (7): cs  -- optional
         a_n_e    : electron density per cell -- optional input
         u_per_cc : whether units of a_props[6] are erg/cc (True) or erg/g (False)
+        a_r      : average radius to use per cell 
         """
 
         self.time = a_time 
