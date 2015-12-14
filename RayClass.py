@@ -1,4 +1,4 @@
-# A class to help do math with hydro output files - 
+# A class to help deal with hydro output files - 
 # mostly has useful tools built in
 #
 
@@ -42,7 +42,6 @@ class Ray(object):
         else:
             self.r = np.array(a_r)
 
-
         self.rho   = a_props[2]
         self.T_gas = a_props[3]
         self.p_gas = a_props[4]
@@ -85,34 +84,38 @@ class Ray(object):
         return Ray( props, self.time, (self.n_e[i] if self.n_e!=None else None), True, self.r[i] )
 
 
-
+ 
     def size(self):
     # Number of cells in the ray
         return len(self.r1);
 
 
+
     def copy(self, i0=0, i1=0 ):
         if i1==0: 
-            i1 = self.__len__()
+            i1 = self.size()
+
+        if i1>= self.size(): i1=self.size()
+        if i0<0               : i0=0
 
         return Ray( [ self.r1   [i0:i1], self.r2   [i0:i1], self.rho[i0:i1], 
                       self.T_gas[i0:i1], self.p_gas[i0:i1], self.v  [i0:i1], 
                       self.u_gas[i0:i1], self.cs   [i0:i1]                   ],
-                    self.time, self.n_e, u_per_cc=True )
+                      self.time, (self.n_e[i0:i1] if self.n_e!=None else self.n_e), u_per_cc=True )
         
 
     def cell_mass(self,i):    
     # Returns the mass in cell i
-        assert i>-1 and i<self.__len__();
+        assert i>-1 and i<self.size();
         return 4*np.pi/3 * self.rho[i] * ((self.r2[i])**3 - (self.r1[i])**3);
 
 
     def mass_btwn(self,i1,i2,verbose=False):
-        assert self.__len__() > 0;
+        assert self.size() > 0;
         assert i1 > -1;
-        assert i1 < self.__len__();
+        assert i1 < self.size();
         assert i2 > -1;
-        assert i2 < self.__len__();
+        assert i2 < self.size();
 
         # Make sure i1 < i2                                                                                                                                                                            
         if i2<i1:
@@ -123,9 +126,9 @@ class Ray(object):
 
         if i1==i2:
             if verbose: print("Ray.mass_btwn() called on single cell");
-            return get_cell_mass(i1)
+            return self.cell_mass(i1)
         else:
-            return sum( [ get_cell_mass(i) for i in range(i1,i2) ] );
+            return sum( [ self.cell_mass(i) for i in range(i1,i2) ] );
 
 
     def cell_at_v(self,vel,tol=-1):
@@ -143,7 +146,7 @@ class Ray(object):
                 return candidate;
             else:
                 print("No cell found near desired velocity within tolerance.");
-                return self.__len__();
+                return self.size();
 
 
     def cell_at_r(self,rad,tol=-1):
@@ -157,7 +160,7 @@ class Ray(object):
                 return candidate;
             else:
                 print("No cell found near desired radius within tolerance.");
-                return self.__len__();
+                return self.size();
 
 
     def rmax(self):
@@ -166,19 +169,22 @@ class Ray(object):
     def rmin(self):
         return min(self.r);
 
-    def cell_volume(self):
+    def cell_volume(self,i=None):
         """
         Returns the volume of each cell
         """
-        return 4*np.pi/3 * ( self.r2**3 - self.r1**3 )
+        if i==None:
+            return 4*np.pi/3 * ( self.r2**3 - self.r1**3 )
+        else:
+            return 4*np.pi/3 * ( self.r2[i]**3 - self.r1[i]**3 )
 
 
-    def volume_between(self, i0=0, i1=0):
+    def volume_btwn(self, i0=0, i1=0):
         """
         Returns the volume enclosed between indeces i0 and i1
         """
         if i1==0:
-            i1 = self.size()
+            i1 = self.size()-1
 
         return 4*np.pi/3 * (self.r2[i1]**3 - self.r1[i0]**3)
 
@@ -190,4 +196,38 @@ class Ray(object):
             assert len(a_n_e) == len(self.r1)
             self.n_e = a_n_e
 
+
+class Cell(object):
+    """
+    Cell (of a Ray)
+    Has all the same variables as the Ray class, plus 
+    """
+    def __init__(self, a_r1=0.0, a_r2=0.0, a_rho=0.0, a_T_gas=0.0, 
+                 a_p_gas=0.0, a_v=0.0, a_u_gas=0.0, a_c_s=0.0, a_n_e=-1, a_i=-1   ):
+        """
+        INPUTS
+        a_r1  : (float) lower radial bound of cell
+        a_r2  : (float) upper ...
+        a_rho : (float) den
+        """
+        if a_r1==a_r2 and a_r1!=0.0: 
+            print( "Warning: zero-volume cell")
+
+        self.r1 = a_r1
+        self.r2 = a_r2
+        self.r  = CKtools.calc_zone_r(r1,r2)
+        self.T_gas = a_T_gas
+        self.p_gas = a_p_gas
+        self.v     = a_v
+        self.u_gas = a_u_gas
+        self.cs    = a_c_s
+        self.n_e   = a_n_e
+        self.i     = a_i
+
+
+    def volume():
+        return 4*np.pi/3 * (self.r2**3 - self.r1**3)
+
+    def mass():
+        return self.volume() * self.rho
 

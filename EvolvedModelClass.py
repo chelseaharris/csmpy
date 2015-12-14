@@ -133,4 +133,4 @@ class EvolvedModel(object):
     def get_ray_at_time(self, t_desired, unit, tol=1.):
     # Get the ray closest to time t_desired within tolerance tol
         i_ray = self.index_of( t_desired, unit, tol );
-        return get_ray(i_ray) if i_ray!=-1 else None;
+        return self.get_ray(i_ray) if i_ray!=-1 else None;
