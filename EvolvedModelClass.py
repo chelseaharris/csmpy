@@ -48,6 +48,9 @@ class EvolvedModel(object):
     # Returns number of ray files this model has
         return len(self.times);
 
+    def __len__(self):
+        return len(self.times);
+
 
     def set_time_unit(self, new_tunit):
     # Express times in different units
