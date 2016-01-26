@@ -110,9 +110,10 @@ class EvolvedModel(object):
     # tol        : (float)  tolerance of result, in units of t_desired
         assert unit in TimeUnits.keys();
         if unit != self.tunit:
-            t_desired *= TimeUnits[self.tunit] / TimeUnits[unit];
-            tol       *= TimeUnits[self.tunit] / TimeUnits[unit];
+            t_desired *= TimeUnits[unit] / TimeUnits[self.tunit];
+            tol       *= TimeUnits[unit] / TimeUnits[self.tunit];
 
+        print(t_desired, tol)
         i_closest = np.argmin( abs( self.times - t_desired ) );
 
         diff = abs( self.times[i_closest] - t_desired );
@@ -129,6 +130,9 @@ class EvolvedModel(object):
     def get_ray( self, ray_num ):
     # Get the ray and set its time (initialize Ray with proper time)
         assert ray_num < self.size();
+        # in case I want to do a reverse index... 
+        if ray_num < 0 : ray_num = range(len(self))[ray_num]
+
         ray_time = self.times[ray_num] * TimeUnits[self.tunit]; # time in seconds
         return Ray.from_file(self.dir, ray_num, ray_time);
 
