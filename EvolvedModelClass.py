@@ -34,6 +34,9 @@ class EvolvedModel(object):
                 for line in rf:
                     if line.startswith('WRITING'):
                         times.append( float( line.split()[-1] ) );
+                    # Introducing new 2-column format for when you start a simulation from a ray
+                    elif len(line.split())==2:
+                        times.append( float( line.split()[1] ) );
             self.times = np.array(times); # times corresponding to ray files
         else:
             rays = glob.glob(model_dir+'/ray_*')
@@ -68,7 +71,7 @@ class EvolvedModel(object):
     # Returns the array of times in a different unit 
     # (like set_time_unit() but doesn't change the object)
         assert unit in TimeUnits.keys();
-        if unit==self.tunit: return self.tunit;
+        if unit==self.tunit: return self.times;
         else               : return self.times*TimeUnits[self.tunit] / TimeUnits[unit];
     
 
