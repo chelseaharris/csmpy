@@ -128,6 +128,8 @@ class EvolvedModel(object):
 
     def get_ray( self, ray_num ):
     # Get the ray and set its time (initialize Ray with proper time)
+        if type(ray_num)==str and 'ray_' in ray_num:
+            ray_num = int(ray_num.split('_')[-1])
         assert ray_num < self.size();
         ray_time = self.times[ray_num] * TimeUnits[self.tunit]; # time in seconds
         return Ray.from_file(self.dir, ray_num, ray_time);
