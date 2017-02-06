@@ -58,17 +58,15 @@ def calc_ioniz_T(A, i, n_e):
     #return T;
 
 
-class SynchrotronCalculator(object):
-# A tool for calculating synchrotron signal
-
-    def __init__( self, a_p = 3, a_eps_B = 0.1, a_eps_e = 0.1 ):
+class RelE(object):
+# A class for managing relativistic electron properties
+    def __init__(self, a_p = 3, a_eps_e = 0.1 ):
         """ 
         INPUTS 
         a_p      : (int, float) dn_e ~ gamma^-p dgamma
         a_eps_B  : (float, float[]) u_B = eps_B * u_gas
         a_eps_e  : (float, float[]) u_e = eps_e * u_gas
         """    
-        self.eps_B = a_eps_B
         self.eps_e = a_eps_e
         self.p     = a_p
 
@@ -96,6 +94,67 @@ class SynchrotronCalculator(object):
         """
         gammin = self.calc_gamma_min( a_ray, a_fNT )
         return a_fNT * a_ray.n_e * (self.p - 1) * gammin**(self.p-1)
+
+
+    def sample_gamma(self, a_ray, a_N_p=1e6, a_gam_max=1e2, a_fNT=1.):
+        # Calculate how many photons scatter in each cell
+        cell_tau = a_ray.n_e * C.SIGMA_TH * (a_ray.r2 - a_ray.r1)
+        frac_tau = cell_tau/sum(cell_tau)
+        N_per = (frac_tau * a_N_p).astype(int)
+        # check that we have the right number of total packets
+        N_per[-1] = a_N_p - sum(N_per[:-1])
+
+        gam_samp = np.zeros(a_N_p)
+
+        # Sample gamma in each cell to populate whole gamma array
+        x_mins = self.calc_gamma_min(a_ray, a_fNT)
+        x_maxs = a_gam_max*np.ones(len(a_ray))
+
+        # (check for non-relativistic values)
+        nonrel = x_mins < 1
+        x_mins[nonrel] = 1.0
+        nonrel = x_maxs < 1
+        if np.any(nonrel): 
+            print('** Warning; {}% of cells are non-relativistic **'.format((100.0*sum(nonrel))/len(nonrel)))
+        x_maxs[nonrel] = 1.0
+
+        maxterm = x_maxs**(1-self.p)
+        minterms = x_mins**(1-self.p)
+        n = 0
+        for i in range(len(a_ray)):
+            term1 = (maxterm[i] - minterms[i]) * np.random.rand(N_per[i])
+            term2 = minterms[i]
+            gam_samp[n : n+N_per[i]] = (term1 + term2)**(1./(1-self.p))
+            n += N_per[i]
+        #term1 = ( x_max**(1-self.p) - x_min**(1-self.p) ) * np.random.rand(a_N_p) ;
+        #term2 = x_min**(1-self.p) ;
+        #return (term1 + term2)**(1./(1-self.p)) ;
+
+        return gam_samp
+
+
+    def calc_tau_es(self, a_ray):
+        return sum( a_ray.n_e * C.SIGMA_TH * (a_ray.r2 - a_ray.r1))
+
+
+
+class SynchrotronCalculator(object):
+# A tool for calculating synchrotron signal
+    def __init__( self, a_p = 3, a_eps_B = 0.1, a_eps_e = 0.1 ):
+        """ 
+        INPUTS 
+        a_p      : (int, float) dn_e ~ gamma^-p dgamma
+        a_eps_B  : (float, float[]) u_B = eps_B * u_gas
+        a_eps_e  : (float, float[]) u_e = eps_e * u_gas
+        """    
+        self.elec  = RelE(a_p, a_eps_e)
+        self.eps_B = a_eps_B
+
+    def calc_gamma_min( self, a_ray, a_fNT=1. ):
+        return self.elec.calc_gamma_min(a_ray, a_fNT)
+
+    def calc_C( self, a_ray, a_fNT=1. ):
+        return self.elec.calc_C(a_ray, a_fNT )
 
 
     def calc_nu_syn( self, a_ray ):
@@ -209,6 +268,262 @@ class SynchrotronCalculator(object):
 
         return np.sum( j_nu * vols, axis=1 )  # sum up contribution from each cell
 
+
+class ComptonCalculator(object):
+# A tool for calculating compton scattering signal
+    def __init__(self, a_p=3, a_eps_e=0.1, a_Npts=1e5):
+        # a_Npts : number of photon packets to propagate
+        self.elecs = RelE(a_p, a_eps_e)
+        self.Npts = a_Npts
+
+    def N_scat(self, a_ray):
+        tau = self.elecs.calc_tau_es(a_ray)
+        return max( tau, tau**2 )
+
+    def scatter(self, gam, beta, hnu_in, mu_in, mu_out):
+    # Calculate e_out from a single scatter 
+    # INPUTS
+    #   gam    : Lorentz factor of electron
+    #   beta   : velocity (c=1 units) of electron
+    #   hnu_in : incoming photon energy
+    #   mu_in  : incoming photon angle relative to electron velocity
+    #   mu_out : outgoing """
+    # 
+        return hnu_in * gam**2 * (1+beta*mu_in) * (1-beta*mu_out);
+
+
+    def sample_spectrum(self, a_spec):
+        summed = np.cumsum( a_spec[:,1] )
+        summed /= summed[-1]
+
+        rand = np.random.rand(self.Npts)
+        i_closest = map( lambda r: np.argmin(abs(summed-r)), rand )
+
+        hnu = a_spec[:,0]
+        return hnu[i_closest]
+
+
+    def calc_IC_spec(self, a_ray, a_L_back, a_spec):
+        # a_L_back  : background luminosity
+        # a_spec    : background spectrum, arbitrary normalization, as array
+        #             col 0: energy (h*nu, in erg), col 1: flux (per erg)
+
+        # Electron/scatterer properties
+        tau = self.elecs.calc_tau_es(a_ray)
+        N_scat = max(tau, tau**2)
+
+        if N_scat > 3: 
+            print('Not single scatter!')
+            return (0,0)
+
+        gam = self.elecs.sample_gamma(a_ray,self.Npts)
+        beta = np.sqrt(1 - 1/gam**2)
+        
+        # Photon properties
+        L_p       = a_L_back/self.Npts
+        scat_frac = 1 - np.exp(-tau)
+        mu_in     = 1 - 2*np.random.rand(self.Npts)
+        mu_out    = 1 - 2*np.random.rand(self.Npts)
+
+        hnu_in = self.sample_spectrum(a_spec) # erg
+        hnu_out = self.scatter( gam, beta, hnu_in, mu_in, mu_out ) # erg
+
+        L_out = L_p * (hnu_out/hnu_in) * scat_frac # erg/s per packet
+        
+
+        # Produce spectrum
+        # bin photons by energy (demand 5000 packets per bin)
+        hnu_bins = np.logspace( np.log10(min(hnu_out)), np.log10(max(hnu_out)), self.Npts/1000); 
+        binsize = np.diff(hnu_bins);
+        # figure out which bin each out-packet goes in:
+        i_assign = np.digitize( hnu_out, hnu_bins ); 
+
+        L_nu = np.zeros( len(binsize) ); # erg s^-1 Hz^-1
+        for i in range( 1, len(hnu_bins) ):
+            L_bin = sum( L_out[i_assign==i] );   
+            L_nu[i-1] = L_bin;
+        L_nu /= binsize ;
+
+
+        return L_nu, (hnu_bins[:-1] + hnu_bins[1:])*0.5, sum(L_out) + a_L_back*np.exp(-tau)
+
+
+    def calc_tot_spec(self, a_ray, a_L_back, a_spec):
+        # a_L_back  : background luminosity
+        # a_spec    : background spectrum, arbitrary normalization, as array
+        #             col 0: energy (h*nu, in erg), col 1: flux (per erg)
+
+        # Electron/scatterer properties
+        tau = self.elecs.calc_tau_es(a_ray)
+        N_scat = max(tau, tau**2)
+
+        if N_scat > 3: 
+            print('Not single scatter!')
+            return (0,0)
+
+        gam = self.elecs.sample_gamma(a_ray,self.Npts)
+        beta = np.sqrt(1 - 1/gam**2)
+        
+        # Photon properties
+        L_p       = a_L_back/self.Npts
+        scat_frac = 1 - np.exp(-tau)
+        mu_in     = 1 - 2*np.random.rand(self.Npts)
+        mu_out    = 1 - 2*np.random.rand(self.Npts)
+
+        hnu_in = self.sample_spectrum(a_spec) # erg
+        hnu_out = self.scatter( gam, beta, hnu_in, mu_in, mu_out ) # erg
+
+        L_out = L_p * (hnu_out/hnu_in) * scat_frac # erg/s per packet scattered 
+        L_orig = L_p * np.exp(-tau) * np.ones(self.Npts)  # erg/s per packet unscattered 
+
+        all_hnu = np.concatenate((hnu_in, hnu_out))
+        all_L   = np.concatenate((L_orig, L_out))
+        N_tot = len(all_hnu)
+
+        # Produce spectrum
+        # bin photons by energy (demand 500 packets per bin)
+        hnu_bins = np.logspace( np.log10(min(all_hnu)), np.log10(max(all_hnu)), N_tot/200); 
+        binsize = np.diff(hnu_bins);
+        # figure out which bin each out-packet goes in:
+        i_assign = np.digitize( all_hnu, hnu_bins ); 
+
+        L_nu = np.zeros( len(binsize) ); # erg s^-1 Hz^-1
+        for i in range( 1, len(hnu_bins) ):
+            L_bin = sum( all_L[i_assign==i] );   
+            L_nu[i-1] = L_bin;
+        L_nu /= binsize ;
+
+        return L_nu, (hnu_bins[:-1] + hnu_bins[1:])*0.5, sum(all_L)
+
+
+class BremCalculator(object):
+    def __init__(self):
+        self.a_var = 0
+
+
+    def calc_j_nu_therm(self, a_ray, a_Z, a_nu, a_gaunt=1.2):
+        """
+        Calculates the specific free-free emissivity from a Maxwellian electron distribution
+        Units of returned value: erg s^-1 cm^-3 Hz^-1 str^-1
+        """
+        # R&L Eqn 5.14b
+        # assuming n_e = n_I
+        csm_vect = 6.8e-38/(4*C.PI) * a_gaunt * a_Z**2 * (a_ray.n_e)**2 * (a_ray.T_gas)**-0.5 
+
+        j_nu = np.empty((len(a_nu), len(a_ray)))
+        for i, this_nu in enumerate(a_nu):
+            j_nu[i] = csm_vect * np.exp(-C.H*this_nu/(C.K_B*a_ray.T_gas))
+            
+        return j_nu
+
+
+    def calc_j_tot(self, a_ray, a_Z, a_gaunt=1.2):
+        """
+        Calculates the total free-free emissivity from a Maxwellian electron distribution
+        Units of returned value: erg s^-1 cm^-3 str^-1
+        """
+        # assuming n_e = n_I
+        # and allowing for relativistic correction
+        # assuming Maxwellian distribution for electrons
+        # Rybicki & Lightman Eqn 5.25
+        return a_gaunt*1.4e-27/(4*C.PI) * a_Z**2 * (a_ray.n_e)**2 * (a_ray.T_gas)**0.5 * (1 + 4.4e-10*a_ray.T_gas)
+
+
+    def calc_al_BB(self, a_ray, a_Z, a_nu, a_gaunt=1.2):
+        """
+        Calculates the free-free absorption at all nu, assuming blackbody source function
+        Units of returned value : cm^-1
+        """
+        # R&L Eqn 5.19b
+        # assuming n_e = n_I 
+        const = 0.018 *a_Z**2 *a_gaunt
+        csm_vect = a_ray.T_gas**-1.5 * a_ray.n_e**2
+        al = const * np.outer(a_nu**-2, csm_vect)
+        return al
+        
+
+    def calc_al_Ross(self, a_ray, a_Z, a_gaunt=1.2):
+        """
+        Calculates the Rosseland mean absorption to free-free
+        Units of returned value : cm^-1
+        """
+        # R&L Eqn 5.20
+        # assuming n_e = n_I
+        return 1.7e-25 * (a_ray.T_gas)**-3.5 * a_Z**2 * (a_ray.n_e)**2 * a_gaunt
+
+
+    def calc_al_from_S(self, a_ray, a_Z, a_nu, a_S_nu, a_gaunt=1.2):
+        """
+        Calculates absorption at all a_nu, assuming source function a_S_nu
+        (corresponding to frequencies in a_nu) and thermal electrons.
+        """
+        # assuming electrons are thermal but source is not
+        # Kirchov's law
+        j_nu = self.calc_j_nu(a_ray, a_Z, a_nu, a_gaunt)
+        return j_nu/a_S_nu
+        
+
+
+def approx_ion_radius(n_base, R_base, Qdot_optical, A_H=1.0, s=0):
+    """
+        n_base is n_e (in cm^-3) at the base of the unshocked CSM
+        R_base is radius (in cm) of forward shock (base of unshocked CSM)
+        Qdot_optical is the rate of production of optical photons (s^-1)
+        A_H is the mass fraction of hydrogen
+        s describes the power law of the CSM (assumed 0 or 2)
+    """
+    fact = 0.1 if s==2 else 0.09
+    tau_IC = fact*C.SIGMA_TH*n_base*R_base
+    Qdot_ion = Qdot_optical * (1 - np.exp(-tau_IC))
+
+    n_7 = n_base/1e7
+    R_15 = R_base/1e15
+    pow = 3 - 2*s
+
+    R_ion = R_base *( 1 + pow *(Qdot_ion/1.25e47)/(A_H *n_7**2 *R_15**3) )**(1./pow)
+    return R_ion
+
+
+def approx_ion_volume(n_base, R_base, R_out, Qdot_optical, A_H=1.0, s=0):
+    """
+        n_base : n_e (in cm^-3) at the base of the unshocked CSM
+        R_base : radius (in cm) of forward shock (base of unshocked CSM)
+        R_out  : outer CSM radius (in cm)
+        Qdot_optical : rate of production of optical photons (s^-1)
+        A_H    : mass fraction of hydrogen
+        s      : describes the power law of the CSM (assumed 0 or 2)
+    """
+    R_strom = approx_ion_radius(n_base, R_base, Qdot_optical, A_H, s)
+
+    if type(R_out) in [int, float]: 
+        R_rec = min(R_strom, R_out)
+    else:
+        R_rec = R_out.copy()
+        R_rec[ R_strom < R_out ] = R_strom
+
+    V_rec = 4*C.PI/3 * (R_rec**3 - R_base**3)
+    return V_rec
+
+
+def calc_Halpha_emiss(n_e):
+    return 6.6e-25 *n_e**2 # 4*pi*j_Halpha
+
+
+def approx_Halpha_luminosity(n_base, R_base, R_out, Qdot_optical, A_H=1.0, s=0):
+    eps_Ha = calc_Halpha_emiss(n_base)
+    V_rec = approx_ion_volume(n_base, R_base, R_out, Qdot_optical, A_H, s)
+
+    L_Ha = eps_Ha * V_rec
+    return L_Ha
+
+
+def approx_R_fwd(R_in, n, t):
+# for constant-density CSM and a normal SN Ia (1.38 M_sun, 1e51 erg),
+# approximate the evolution of the shock radius for t > t_imp with
+# t in seconds
+    R11 = R_in/1e11
+    n7 = n/1e7
+    return 1.85e11 *(R11 * n7)**-0.11 *t**-0.78
 
 
 def solve_ion_Saha():
