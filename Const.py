@@ -31,11 +31,21 @@ ERG2EV    = 624150934326.018 # ( (1*u.erg).to(u.eV ) ).value;
 EV2ERG    = 1./ERG2EV
 HZ2ERG    = 6.62606957e-27   # ( (C.h*(1*u.Hz)).to(u.erg) ).value;
 HZ2EV     = HZ2ERG * ERG2EV;
+MET2ERG   = HZ2ERG * C_LIGHT/(1e2)
 # ... length
 ANG2CM    = 1e-8
 KM2CM     = 1e5
 KKM2CM    = 1e3*KM2CM
+PC2CM     = 3.08567758149137e18
 
+# More Complicated Conversions
+# ... wavelength/frequency
+Ang2Hz      = lambda lm_Ang: C_LIGHT/(lm_Ang*ANG2CM)
+Ang2erg     = lambda lm_Ang: H*Ang2Hz(lm_Ang)
+# ... specific fluxes or luminosities
+F_Ang2F_Hz  = lambda lm_Ang, f_Ang: lm_Ang**2/C_LIGHT * f_Ang * ANG2CM # (f_Ang/ANG2CM) * (lm_Ang*ANG2CM)**2
+F_Ang2F_erg = lambda lm_Ang, f_Ang: F_Ang2F_Hz(lm_Ang, f_Ang) / H
+# ... times
 def TimeConvert( a_time, a_u_now, a_u_des ):
     Time_to_Sec = {'yr'  : YR2SEC, 
                    'week': WEEK2SEC, 
