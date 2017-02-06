@@ -406,14 +406,15 @@ class BremCalculator(object):
         Calculates the specific free-free emissivity from a Maxwellian electron distribution
         Units of returned value: erg s^-1 cm^-3 Hz^-1 str^-1
         """
-        # R&L Eqn 5.14b
-        # assuming n_e = n_I
-        csm_vect = 6.8e-38/(4*C.PI) * a_gaunt * a_Z**2 * (a_ray.n_e)**2 * (a_ray.T_gas)**-0.5 
+        assert a_ray.n_e != None
+        assert a_ray.n_I != None
 
-        j_nu = np.empty((len(a_nu), len(a_ray)))
-        for i, this_nu in enumerate(a_nu):
-            j_nu[i] = csm_vect * np.exp(-C.H*this_nu/(C.K_B*a_ray.T_gas))
-            
+        # R&L Eqn 5.14b
+        csm_vect = 6.8e-38/(4*C.PI) * a_gaunt * a_Z**2 * a_ray.n_e * a_ray.n_I * (a_ray.T_gas)**-0.5 
+
+        e_frac = np.outer( -C.H*a_nu, 1.0/(C.K_B*a_ray.T_gas) ) # rows - nu, cols - mass coords
+        j_nu = csm_vect * np.exp(e_frac)  # rows - nu, cols - mass coords
+
         return j_nu
 
 
@@ -422,11 +423,12 @@ class BremCalculator(object):
         Calculates the total free-free emissivity from a Maxwellian electron distribution
         Units of returned value: erg s^-1 cm^-3 str^-1
         """
-        # assuming n_e = n_I
-        # and allowing for relativistic correction
+        # allowing for relativistic correction
         # assuming Maxwellian distribution for electrons
         # Rybicki & Lightman Eqn 5.25
-        return a_gaunt*1.4e-27/(4*C.PI) * a_Z**2 * (a_ray.n_e)**2 * (a_ray.T_gas)**0.5 * (1 + 4.4e-10*a_ray.T_gas)
+        assert a_ray.n_e != None
+        assert a_ray.n_I != None
+        return a_gaunt*1.4e-27/(4*C.PI) * a_Z**2 * a_ray.n_e * a_ray.n_I * (a_ray.T_gas)**0.5 * (1 + 4.4e-10*a_ray.T_gas)
 
 
     def calc_al_BB(self, a_ray, a_Z, a_nu, a_gaunt=1.2):
@@ -436,8 +438,11 @@ class BremCalculator(object):
         """
         # R&L Eqn 5.19b
         # assuming n_e = n_I 
+        assert a_ray.n_e != None
+        assert a_ray.n_I != None
+
         const = 0.018 *a_Z**2 *a_gaunt
-        csm_vect = a_ray.T_gas**-1.5 * a_ray.n_e**2
+        csm_vect = a_ray.T_gas**-1.5 * a_ray.n_e * a_ray.n_I
         al = const * np.outer(a_nu**-2, csm_vect)
         return al
         
@@ -448,8 +453,9 @@ class BremCalculator(object):
         Units of returned value : cm^-1
         """
         # R&L Eqn 5.20
-        # assuming n_e = n_I
-        return 1.7e-25 * (a_ray.T_gas)**-3.5 * a_Z**2 * (a_ray.n_e)**2 * a_gaunt
+        assert a_ray.n_e != None
+        assert a_ray.n_I != None
+        return 1.7e-25 * (a_ray.T_gas)**-3.5 * a_Z**2 * a_ray.n_e * a_ray.n_I * a_gaunt
 
 
     def calc_al_from_S(self, a_ray, a_Z, a_nu, a_S_nu, a_gaunt=1.2):
