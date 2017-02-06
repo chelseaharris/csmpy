@@ -13,7 +13,7 @@ class Ray(object):
     Member variables of this class: time, r1, r2, r, rho, T_gas, p_gas, v, u_gas, cs, n_e
     """
 
-    def __init__(self, a_props, a_time=-1, a_n_e = None, u_per_cc = False, a_r=[]):
+    def __init__(self, a_props, a_time=-1, a_n_e = None, a_n_I = None, u_per_cc = False, a_r=[]):
         """
         INPUTS
         a_props  : 2D array of properties. Rows are
@@ -26,6 +26,7 @@ class Ray(object):
                    6: u_gas (assumed in erg/gram unless u_per_cc set to True)
                    (7): cs  -- optional
         a_n_e    : electron density per cell -- optional input
+        a_n_I    : ion density per cell -- optional input
         u_per_cc : whether units of a_props[6] are erg/cc (True) or erg/g (False)
         a_r      : average radius to use per cell 
         """
@@ -59,6 +60,7 @@ class Ray(object):
             self.cs = np.zeros(len(self.r1))
 
         self.n_e = a_n_e
+        self.n_I = a_n_I
 
 
 
@@ -82,7 +84,10 @@ class Ray(object):
 
     def __getitem__(self,i):
         props = [ self.r1[i], self.r2[i], self.rho[i], self.T_gas[i], self.p_gas[i], self.v[i], self.u_gas[i], self.cs[i] ]
-        return Ray( props, self.time, (self.n_e[i] if self.n_e!=None else None), True, self.r[i] )
+        return Ray( props, self.time, 
+                    (self.n_e[i] if self.n_e!=None else None), 
+                    (self.n_I[i] if self.n_I!=None else None), 
+                    True, self.r[i] )
 
 
 
@@ -105,7 +110,10 @@ class Ray(object):
         return Ray( [ self.r1   [i0:i1], self.r2   [i0:i1], self.rho[i0:i1], 
                       self.T_gas[i0:i1], self.p_gas[i0:i1], self.v  [i0:i1], 
                       self.u_gas[i0:i1], self.cs   [i0:i1]                   ],
-                      self.time, (self.n_e[i0:i1] if self.n_e!=None else self.n_e), u_per_cc=True )
+                    self.time, 
+                    (self.n_e[i0:i1] if self.n_e!=None else self.n_e), 
+                    (self.n_I[i0:i1] if self.n_I!=None else self.n_I), 
+                    u_per_cc=True )
         
 
     def cell_mass(self,i):    
@@ -195,10 +203,24 @@ class Ray(object):
 
     def set_n_e(self, a_n_e=None):
         if a_n_e == None:
-            self.n_e = self.rho / C.M_P 
+            self.n_e = self.rho / C.M_P # fully ionized hydrogen
         else:
             assert len(a_n_e) == len(self.r1)
             self.n_e = a_n_e
+
+
+    def set_n_I(self, a_n_I=None):
+        if a_n_I == None:
+            self.n_I = self.rho / C.M_P  # fully ionized hydrogen
+        else:
+            assert len(a_n_I) == len(self.r1)
+            self.n_I = a_n_I
+
+    def get_n(self):
+        assert self.n_I != None 
+        assert self.n_e != None
+
+        return self.n_e + self.n_I
 
 
 class Cell(object):
