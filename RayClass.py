@@ -85,6 +85,9 @@ class Ray(object):
         return Ray( props, self.time, (self.n_e[i] if self.n_e!=None else None), True, self.r[i] )
 
 
+
+    def __len__(self):
+        return len(self.r1)
  
     def size(self):
     # Number of cells in the ray
