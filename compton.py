@@ -46,26 +46,29 @@ def thermal_variate(num_pts, hnu_min, hnu_max, kT):
     return energies;
 
 
-def arbitrary_variate(num_pts, spec_filename):
+def arbitrary_variate(num_pts, spec_filename, is_nu=False):
 # Randomly sample a spectrum -- no smoothing of spectrum [yet]
 # INPUTS
 #   num_pts       : number of samples to take
 #   spec_filename : location of spectrum from which to sample;
 #                   expects two-column format, space separated
-#                   col 1: wavelength (Ang); col 2: flux per unit wavelength
+#   is_nu         : whether spectrum is in lm, f_lm units or nu, f_nu
 
     # Load spectrum
-    lm_Ang, f_lm = np.loadtxt(spec_filename, usecols=[0,1], unpack=True)
+    x, y = np.loadtxt(spec_filename, usecols=[0,1], unpack=True)
 
     # This is where we'd smooth if we wanted to
-    
-    # Convert to energy (and per energy) units
-    lm = lm_Ang * 1e-8  # convert wavelength to cm
-    hnu_spec = C.H * C.C_LIGHT / lm # convert wavelength to energy
-    f_e = lm_Ang * f_lm / hnu_spec # convert flux to per energy
+    if is_nu:
+        hnu_spec = x*C.H
+        f_e = y/C.H
+    if not is_nu:
+        # Convert to energy (and per energy) units
+        lm = x * 1e-8  # convert wavelength to cm
+        hnu_spec = C.H * C.C_LIGHT / lm # convert wavelength to energy
+        f_e = x * y / hnu_spec # convert flux to per energy
+        hnu_spec, f_e = hnu_spec[::-1], f_e[::-1] # reverse to have mon inc
 
     # use the CDF to sample values
-    hnu_spec, f_e = hnu_spec[::-1], f_e[::-1] # reverse to have mon inc
     summed = np.cumsum(f_e) # convert to normed cumsum
     summed /= summed[-1]
     #cdf = spy.interpolate.interp1d(hnu_spec, summed) # for higher accuracy
@@ -175,7 +178,7 @@ def compton(L_background, back_info, show=False):
     
         plt.show();
    
-    return L_nu, hnu_bins;
+    return L_nu, hnu_bins/C.ERG2EV;
 
 
 if __name__=='__main__': 
