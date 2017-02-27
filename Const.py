@@ -3,18 +3,19 @@
 PI = 3.141592653589793 # np.pi
 
 # Physical constants in cgs
-C_LIGHT   = 29979245800.0         # (C.c.to(u.cm/u.s)).value;
-H         = 6.6260695700e-27      # (C.h.to(u.erg*u.s)).value;
-K_B       = 1.3806488e-16         # (C.k_B.to(u.erg/u.K)).value;
-M_P       = 1.672621777e-24       # (C.m_p.to(u.g)).value;
-M_E       = 9.10938291e-28        # (C.m_e.to(u.g)).value;
-SIGMA_SB  = 5.670373e-05          # (C.sigma_sb.to(u.erg/u.s * u.K**-4 * u.cm**-2)).value;
-M_SUN     = 1.9891e+33            # (C.M_sun.to(u.g)).value;
-E_ESU     = 4.803204505713468e-10 # (C.cgs.e_esu).value;
-A_RAD     = 4* SIGMA_SB / C_LIGHT;
-SIGMA_TH  = (8*PI/3) * E_ESU**4 / (M_E**2 * C_LIGHT**4);
-M_CH      = 1.4*M_SUN;
-GAMMA_AD  = 5./3;
+C_LIGHT   = 29979245800.0          # speed of light     (C.c.to(u.cm/u.s)).value;
+H         = 6.6260695700e-27       # Planck's constant  (C.h.to(u.erg*u.s)).value;
+K_B       = 1.3806488e-16          # Boltzman contstant (C.k_B.to(u.erg/u.K)).value;
+M_P       = 1.672621777e-24        # proton mass        (C.m_p.to(u.g)).value;
+M_E       = 9.10938291e-28         # electron mass      (C.m_e.to(u.g)).value;
+SIGMA_SB  = 5.670373e-05           # Stefan-Boltzman    (C.sigma_sb.to(u.erg/u.s * u.K**-4 * u.cm**-2)).value;
+M_SUN     = 1.9891e+33             # solar mass         (C.M_sun.to(u.g)).value;
+E_ESU     = 4.803204505713468e-10  # electron charge    (C.cgs.e_esu).value;
+A_RAD     = 4* SIGMA_SB / C_LIGHT;                       # radiation constant 
+SIGMA_TH  = (8*PI/3) * E_ESU**4 / (M_E**2 * C_LIGHT**4); # Thomson cross-section
+M_CH      = 1.4*M_SUN;                                   # non-rotating Chandrasekhar mass
+GAMMA_AD  = 5./3;                                        # ideal gas adiabatic coefficient
+SIGMA_TOT = PI*E_ESU**2 / (M_E*C_LIGHT)                  # atomic line profile nomalization [cm^2 Hz]
 # Physical constants in other units
 M_P_GEV   = 0.9382720462814463    # ((C.m_p * C.c**2).to(u.GeV)).value;
 M_E_ERG   = M_E * C_LIGHT**2 ;

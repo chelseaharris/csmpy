@@ -533,18 +533,21 @@ def approx_R_fwd(R_in, n, t):
 
 
 def calc_inverse_mu_e(spec_Z, spec_A, mass_fracs, ioniz_fracs):
+    assert sum(mass_fracs)==1.0
+
     if type(spec_Z     ) != np.ndarray: spec_Z      = np.array(spec_Z     )
     if type(spec_A     ) != np.ndarray: spec_A      = np.array(spec_A     )
     if type(mass_fracs ) != np.ndarray: mass_fracs  = np.array(mass_fracs )
     if type(ioniz_fracs) != np.ndarray: ioniz_fracs = np.array(ioniz_fracs)
-
-    assert sum(mass_fracs)==1.0
 
     return sum( spec_Z*mass_fracs*ioniz_fracs / spec_A )
 
 
 def calc_inverse_mu_I(spec_A, mass_fracs):
     assert sum(mass_fracs)==1.0
+
+    if type(spec_A     ) != np.ndarray: spec_A      = np.array(spec_A     )
+    if type(mass_fracs ) != np.ndarray: mass_fracs  = np.array(mass_fracs )
 
     return sum( mass_fracs / spec_A )
 
