@@ -37,7 +37,8 @@ class EvolvedModel(object):
             self.times = np.array(times); # times corresponding to ray files
         else:
             rays = glob.glob(model_dir+'/ray_*')
-            self.times = np.linspace( 0, len(rays) )
+            ray_nums = [ float((r.split('/')[-1]).split('_')[-1])  for r in rays ]
+            self.times = np.array(ray_nums).sort()
 
         self.tunit = 's'; # ray files have times in seconds
         if tunit_des!='s': self.set_time_unit(tunit_des);
@@ -130,7 +131,7 @@ class EvolvedModel(object):
     # Get the ray and set its time (initialize Ray with proper time)
         if type(ray_num)==str and 'ray_' in ray_num:
             ray_num = int(ray_num.split('_')[-1])
-        assert ray_num < self.size();
+
         ray_time = self.times[ray_num] * TimeUnits[self.tunit]; # time in seconds
         return Ray.from_file(self.dir, ray_num, ray_time);
 
