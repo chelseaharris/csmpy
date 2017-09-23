@@ -260,8 +260,8 @@ def get_A(s, n):
     Returns C82 value of A
     """
     # From C82 (level 0 key is 's', level 1 key is 'n')
-    A_dict = { 0: {7: 1.2  , 10:0.33 , 12:0.19 },
-               2: {7: 0.270, 10:0.067, 12:0.038}
+    A_dict = { 0: {6: 2.4 , 7: 1.2  , 8: 0.71,  9: 0.47 , 10:0.33 , 12:0.19 , 14: 0.12 },
+               2: {6: 0.62, 7: 0.270, 8: 0.15,  9: 0.096, 10:0.067, 12:0.038, 14: 0.025}
              }
     if s not in A_dict.keys():
         print("No recorded A values for s={:d}".format(s));
