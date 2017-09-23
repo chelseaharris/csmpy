@@ -71,7 +71,7 @@ class RelE(object):
         self.p     = a_p
 
 
-    def calc_gamma_min( self, a_ray, a_fNT=1. ):
+    def calc_gamma_min( self, a_ray, a_fNT=0.01 ):
         """
         Calculate the minimum electron gamma given that
           f_NT*n_e = integral_gammin^infinity ( C*gam^-p dgam)
@@ -86,7 +86,7 @@ class RelE(object):
         return float(self.p-2)/(self.p-1) * (self.eps_e * a_ray.u_gas) / (a_fNT * a_ray.n_e * C.M_E_ERG )
 
 
-    def calc_C( self, a_ray, a_fNT=1. ):
+    def calc_C( self, a_ray, a_fNT=0.01 ):
         """
         Calculates C as in 
           dn_e = C * gam^-p * dgam
@@ -96,7 +96,7 @@ class RelE(object):
         return a_fNT * a_ray.n_e * (self.p - 1) * gammin**(self.p-1)
 
 
-    def sample_gamma(self, a_ray, a_N_p=1e6, a_gam_max=1e2, a_fNT=1.):
+    def sample_gamma(self, a_ray, a_N_p=1e6, a_gam_max=1e2, a_fNT=0.01):
         # Calculate how many photons scatter in each cell
         cell_tau = a_ray.n_e * C.SIGMA_TH * (a_ray.r2 - a_ray.r1)
         frac_tau = cell_tau/sum(cell_tau)
@@ -443,9 +443,11 @@ class BremCalculator(object):
         assert a_ray.n_e != None
         assert a_ray.n_I != None
 
-        const = 0.018 *a_Z**2 *a_gaunt
-        csm_vect = a_ray.T_gas**-1.5 * a_ray.n_e*a_f_therm * a_ray.n_I
-        al = const * np.outer(a_nu**-2, csm_vect)
+        const = 3.7e8 *a_Z**2 *a_gaunt
+        csm_vect = a_ray.T_gas**-0.5 * a_ray.n_e*a_f_therm * a_ray.n_I 
+        exp_pow = np.outer(-C.H*a_nu, 1.0/(C.K_B*a_ray.T_gas))
+        al = const * np.outer(a_nu**-3, csm_vect) * (1 - np.exp(exp_pow))
+
         return al
         
 
