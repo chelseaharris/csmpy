@@ -29,7 +29,7 @@ class EvolvedModel(object):
         self.dir = model_dir;
 
         ray_files = glob.glob(model_dir+'/ray_*') 
-        self.ray_nums = np.array([ int((r.split('/')[-1]).split('_')[-1])  for r in ray_files ] )
+        self.ray_nums = np.sort(np.array([ int((r.split('/')[-1]).split('_')[-1])  for r in ray_files ] ))
 
         if time_fn!='':
             times = [];
@@ -39,7 +39,7 @@ class EvolvedModel(object):
                     if line.startswith('WRITING'):
                         if this in self.ray_nums:  # only add rays we actually have
                             times.append( float( line.split()[-1] ) );
-                            this += 1
+                        this += 1
             self.times = np.array(times); # times corresponding to ray files
         else:
             self.times = np.sort(self.ray_nums.astype(float))
