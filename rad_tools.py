@@ -176,7 +176,7 @@ class SynchrotronCalculator(object):
         """
         numer_fact = np.sqrt(2/np.pi) * C.E_ESU * C.C_LIGHT * C.M_E_ERG**-3 
 
-        return numer_fact * self.eps_e**2 * np.sqrt(self.eps_B) * (float(self.p-2)/(self.p-1))**2 * (a_fNT * a_ray.n_e)**-2 * a_ray.u_gas**2.5
+        return numer_fact * self.elec.eps_e**2 * np.sqrt(self.eps_B) * (float(self.elec.p-2)/(self.elec.p-1))**2 * (a_fNT * a_ray.n_e)**-2 * a_ray.u_gas**2.5
 
 
     def calc_j_nu( self, a_nu_Hz, a_ray, a_fNT=1. ):
@@ -209,7 +209,7 @@ class SynchrotronCalculator(object):
         """
         assert a_fNT <= 1
 
-        if self.p!=3:
+        if self.elec.p!=3:
             print('Sorry, I\'m not set up for p=/=3 yet!')
             return None
 
@@ -236,19 +236,19 @@ class SynchrotronCalculator(object):
         Calculate the extinction coefficient for synchrotron self-absorption
         """
         SINA = 2.0/C.PI
-        GG = gamfunc((3*self.p + 2)/12.) * gamfunc((3*self.p + 22)/12.)
+        GG = gamfunc((3*self.elec.p + 2)/12.) * gamfunc((3*self.elec.p + 22)/12.)
 
-        C_E = C.M_E_ERG**(self.p-1) *self.calc_C(a_ray, a_fNT)
+        C_E = C.M_E_ERG**(self.elec.p-1) *self.calc_C(a_ray, a_fNT)
 
-        Bmag = np.sqrt(8*C.PI*self.eps_e*a_ray.u_gas)
+        Bmag = np.sqrt(8*C.PI*self.elec.eps_e*a_ray.u_gas)
 
         # R&L Eqn 6.53
         al = np.sqrt(3)*C.E_ESU**3 / (8*C.PI*C.M_E)
-        al*= (3*C.E_ESU/(2*C.PI *C.M_E**3 *C.C_LIGHT**5))**(0.5*self.p)
-        al*= C_E *(Bmag*SINA)**(0.5*(self.p + 2))
+        al*= (3*C.E_ESU/(2*C.PI *C.M_E**3 *C.C_LIGHT**5))**(0.5*self.elec.p)
+        al*= C_E *(Bmag*SINA)**(0.5*(self.elec.p + 2))
         al*= GG
 
-        fin_al = np.outer( a_nu_Hz**(-0.5*(self.p + 4)), al )
+        fin_al = np.outer( a_nu_Hz**(-0.5*(self.elec.p + 4)), al )
 
         return fin_al
 
@@ -271,14 +271,16 @@ class SynchrotronCalculator(object):
 
 class ComptonCalculator(object):
 # A tool for calculating compton scattering signal
-    def __init__(self, a_p=3, a_eps_e=0.1, a_Npts=1e5):
+    def __init__(self, a_p=3, a_eps_e=0.1, a_Npts=int(1e5)):
         # a_Npts : number of photon packets to propagate
         self.elecs = RelE(a_p, a_eps_e)
         self.Npts = a_Npts
 
+
     def N_scat(self, a_ray):
         tau = self.elecs.calc_tau_es(a_ray)
         return max( tau, tau**2 )
+
 
     def scatter(self, gam, beta, hnu_in, mu_in, mu_out):
     # Calculate e_out from a single scatter 
@@ -401,16 +403,16 @@ class BremCalculator(object):
         self.a_var = 0
 
 
-    def calc_j_nu_therm(self, a_ray, a_Z, a_nu, a_gaunt=1.2):
+    def calc_j_nu_therm(self, a_ray, a_Z, a_nu, a_gaunt=1.2, a_f_therm=1.0):
         """
         Calculates the specific free-free emissivity from a Maxwellian electron distribution
         Units of returned value: erg s^-1 cm^-3 Hz^-1 str^-1
         """
-        assert a_ray.n_e != None
-        assert a_ray.n_I != None
+        assert len(a_ray.n_e) == len(a_ray)
+        assert len(a_ray.n_I) == len(a_ray)
 
         # R&L Eqn 5.14b
-        csm_vect = 6.8e-38/(4*C.PI) * a_gaunt * a_Z**2 * a_ray.n_e * a_ray.n_I * (a_ray.T_gas)**-0.5 
+        csm_vect = 6.8e-38/(4*C.PI) * a_gaunt * a_Z**2 * a_ray.n_e*a_f_therm * a_ray.n_I * (a_ray.T_gas)**-0.5 
 
         e_frac = np.outer( -C.H*a_nu, 1.0/(C.K_B*a_ray.T_gas) ) # rows - nu, cols - mass coords
         j_nu = csm_vect * np.exp(e_frac)  # rows - nu, cols - mass coords
@@ -418,7 +420,7 @@ class BremCalculator(object):
         return j_nu
 
 
-    def calc_j_tot(self, a_ray, a_Z, a_gaunt=1.2):
+    def calc_j_tot(self, a_ray, a_Z, a_gaunt=1.2, a_f_therm=1.0):
         """
         Calculates the total free-free emissivity from a Maxwellian electron distribution
         Units of returned value: erg s^-1 cm^-3 str^-1
@@ -428,10 +430,10 @@ class BremCalculator(object):
         # Rybicki & Lightman Eqn 5.25
         assert a_ray.n_e != None
         assert a_ray.n_I != None
-        return a_gaunt*1.4e-27/(4*C.PI) * a_Z**2 * a_ray.n_e * a_ray.n_I * (a_ray.T_gas)**0.5 * (1 + 4.4e-10*a_ray.T_gas)
+        return a_gaunt*1.4e-27/(4*C.PI) * a_Z**2 * a_ray.n_e*a_f_therm * a_ray.n_I * (a_ray.T_gas)**0.5 * (1 + 4.4e-10*a_ray.T_gas)
 
 
-    def calc_al_BB(self, a_ray, a_Z, a_nu, a_gaunt=1.2):
+    def calc_al_BB(self, a_ray, a_Z, a_nu, a_gaunt=1.2, a_f_therm=1.0):
         """
         Calculates the free-free absorption at all nu, assuming blackbody source function
         Units of returned value : cm^-1
@@ -442,12 +444,12 @@ class BremCalculator(object):
         assert a_ray.n_I != None
 
         const = 0.018 *a_Z**2 *a_gaunt
-        csm_vect = a_ray.T_gas**-1.5 * a_ray.n_e * a_ray.n_I
+        csm_vect = a_ray.T_gas**-1.5 * a_ray.n_e*a_f_therm * a_ray.n_I
         al = const * np.outer(a_nu**-2, csm_vect)
         return al
         
 
-    def calc_al_Ross(self, a_ray, a_Z, a_gaunt=1.2):
+    def calc_al_Ross(self, a_ray, a_Z, a_gaunt=1.2, a_f_therm=1.0):
         """
         Calculates the Rosseland mean absorption to free-free
         Units of returned value : cm^-1
@@ -455,19 +457,93 @@ class BremCalculator(object):
         # R&L Eqn 5.20
         assert a_ray.n_e != None
         assert a_ray.n_I != None
-        return 1.7e-25 * (a_ray.T_gas)**-3.5 * a_Z**2 * a_ray.n_e * a_ray.n_I * a_gaunt
+        return 1.7e-25 * (a_ray.T_gas)**-3.5 * a_Z**2 * a_ray.n_e*a_f_therm * a_ray.n_I * a_gaunt
 
 
-    def calc_al_from_S(self, a_ray, a_Z, a_nu, a_S_nu, a_gaunt=1.2):
+    def calc_al_from_S(self, a_ray, a_Z, a_nu, a_S_nu, a_gaunt=1.2, a_f_therm=1.0):
         """
         Calculates absorption at all a_nu, assuming source function a_S_nu
         (corresponding to frequencies in a_nu) and thermal electrons.
         """
         # assuming electrons are thermal but source is not
         # Kirchov's law
-        j_nu = self.calc_j_nu(a_ray, a_Z, a_nu, a_gaunt)
+        j_nu = self.calc_j_nu_therm(a_ray, a_Z, a_nu, a_gaunt, a_f_therm)
         return j_nu/a_S_nu
+
+
+class HalCalculator(object):
+    def __init__(self):
+        self.nu_Lya = 3.28984196036e+15 # Hz    
+        self.nu_Hal = 4.567918e+14 # Hz
+        self.al_A = 4.2e-13 # cm^3 s^-1 case A 
+        self.al_B = 2.6e-13 # cm^3 s^-1 case B
+
+    def calc_emiss(self, a_ray):
+        return 6.6e-25 * a_ray.n_e**2 # 4*pi*j_Halpha
+
+
+    def calc_xsec(self, a_nu):
+        xsec = (C.SIGMA_TOT/self.nu_Lya) * (a_nu/self.nu_Lya)**-3
+        try:
+            xsec[a_nu < self.nu_Lya] = 0.0
+        except TypeError:
+            if a_nu < self.nu_Lya: 
+                xsec = 0.0
+        return xsec
+
+
+    def calc_tauUV(self, a_ray, a_nu, a_X=1.):
+        """
+        This calculation assumes a_ray only contains neutral hydrogen
+        INPUT
+        a_ray : RayClass object   reprocessing gas
+        a_nu  : float[]           frequencies of incident radiation
+        a_X   : float             hydrogen fraction by number
+        """
+        xsec = self.calc_xsec(a_nu) # hydrogen photoionization cross-section
+
+        N = a_X * a_ray.calc_N()
+        return xsec*N
         
+
+    def calc_Rstrom(self, a_ray, a_L, a_nu, a_X=0.912):
+        """
+        INPUTS
+        a_ray : RayClass object   reprocessing gas
+        a_L   : float[]           incident/ionizing luminosity (erg/s) as a function of frequency
+        a_nu  : float[]           frequencies of incident radiation
+        a_X   : float             hydrogen fraction by number
+        """
+        Qdot = a_L/(C.H*a_nu)
+
+        tau = self.calc_tauUV(a_ray, a_nu, a_X)
+        is_abs =  tau >= 2./3 
+        Qdot_abs = sum( Qdot[is_abs] ) # production rate of ionizing photons
+        
+        # luminosity that was worthless in this calc
+        streams = tau < 2./3
+        L_stream = sum( a_L[streams] )
+        f_unused = L_stream/sum(a_L)
+                        
+        dV = 4*C.PI * a_ray.r**2 * (a_ray.r2 - a_ray.r1)
+        Pdot = self.al_B *a_X * np.cumsum( a_ray.n_e * a_ray.n_I  * dV) # integrating up to some radius r
+        # if there is too much ionizing flux, cannot match and some ionizing photons escape
+        if Pdot[-1] < Qdot_abs: 
+            f_extra = (Qdot_abs - Pdot[-1])/Qdot_abs
+            L_esc = sum(a_L[is_abs]) * f_extra
+            i_strom = len(a_ray) - 1
+        else:
+            L_esc = 0.0
+            i_strom = np.argmin(abs(Pdot - Qdot_abs))
+                        
+        R_strom = a_ray.r2[ i_strom ]
+
+        return R_strom, L_esc, f_unused, Qdot, Pdot, is_abs
+
+
+    def calc_L_esc(self, a_ray, a_L, a_nu, a_X):
+        return 0
+
 
 
 def approx_ion_radius(n_base, R_base, Qdot_optical, A_H=1.0, s=0):
@@ -511,9 +587,6 @@ def approx_ion_volume(n_base, R_base, R_out, Qdot_optical, A_H=1.0, s=0):
     return V_rec
 
 
-def calc_Halpha_emiss(n_e):
-    return 6.6e-25 *n_e**2 # 4*pi*j_Halpha
-
 
 def approx_Halpha_luminosity(n_base, R_base, R_out, Qdot_optical, A_H=1.0, s=0):
     eps_Ha = calc_Halpha_emiss(n_base)
@@ -550,6 +623,9 @@ def calc_inverse_mu_I(spec_A, mass_fracs):
     if type(mass_fracs ) != np.ndarray: mass_fracs  = np.array(mass_fracs )
 
     return sum( mass_fracs / spec_A )
+
+
+
 
 
 def solve_ion_Saha():
