@@ -33,10 +33,20 @@ class EvolvedModel(object):
             with open(model_dir+'/'+time_fn) as rf:
                 for line in rf:
                     if line.startswith('WRITING'):
-                        times.append( float( line.split()[-1] ) );
+                        try:
+                            times.append( float( line.split()[-1] ) );
+                        except ValueError:
+                            print('Encountered bad WRITING line:')
+                            print(line)
+                            break
                     # Introducing new 2-column format for when you start a simulation from a ray
                     elif len(line.split())==2:
-                        times.append( float( line.split()[1] ) );
+                        try:
+                            times.append( float( line.split()[1] ) );
+                        except ValueError:
+                            print('Encountered bad WRITING line:')
+                            print(line)
+                            break;
             self.times = np.array(times); # times corresponding to ray files
         else:
             rays = glob.glob(model_dir+'/ray_*')
