@@ -115,9 +115,10 @@ class EvolvedModel(object):
     # tol        : (float)  tolerance of result, in units of t_desired
         assert unit in TimeUnits.keys();
         if unit != self.tunit:
-            t_desired *= TimeUnits[self.tunit] / TimeUnits[unit];
-            tol       *= TimeUnits[self.tunit] / TimeUnits[unit];
+            t_desired *= TimeUnits[unit] / TimeUnits[self.tunit];
+            tol       *= TimeUnits[unit] / TimeUnits[self.tunit];
 
+        print(t_desired, tol)
         i_closest = np.argmin( abs( self.times - t_desired ) );
 
         diff = abs( self.times[i_closest] - t_desired );
