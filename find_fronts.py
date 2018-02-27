@@ -92,7 +92,7 @@ def find_fronts( data, car_size=13, start=-1, end=-1, N_find=3, car2_size=-1 ):
         car_size -= 1;
         print( "ALERT: Even-valued car size. Decreasing car size by 1." );
 
-    half_size = car_size/2;  # a useful number: pixels left/right of car center
+    half_size = int(car_size/2);  # a useful number: pixels left/right of car center
 
     # Define short and long cars
     #  Defaults
@@ -112,7 +112,7 @@ def find_fronts( data, car_size=13, start=-1, end=-1, N_find=3, car2_size=-1 ):
     # both good everywhere).
     # 'start' and 'end' specify the chunk of data we will use to look for fronts 
     #
-    half_long_size = long_car_size/2;
+    half_long_size = int(long_car_size/2);
     default_start = half_long_size;             # set default start index (to first possible)
     default_end   = len(data) - half_long_size; # set default end index (to last possible)
     if start==-1:  start = default_start;
