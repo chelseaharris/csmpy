@@ -223,6 +223,22 @@ def calc_R_c( t, s, n, q, M_ej=C.M_CH, delta=1, E_ej=FOE):
     return (A*g_tothe_n/q)**(1./(n-s)) * t**((n-3.)/(n-s)) ;    
 
 
+def calc_v_s( t, s, n, q, M_ej=C.M_CH, delta=1, E_ej=FOE):
+    """
+    calculate the foward and reverse shock speeds
+    """
+    f_fwd = get_R1_factor(s, n)
+    f_rev = get_R2_facotr(s, n)
+
+    v_c = (n-3.)/(n-s) * calc_R_c(t, s, n, q, M_ej, delta, E_ej) / t
+
+    v_fwd = f_fwd*v_c
+    v_rev = f_rev*v_c
+
+    return v_fwd, v_rev
+
+
+
 def calc_shell_R_c( t, s, n, f_R, M_csm, M_ej=C.M_CH, delta=1, E_ej=FOE):
     """
     Calculate the self-similar contact radius given a shell of CSM
