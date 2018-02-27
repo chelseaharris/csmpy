@@ -8,13 +8,52 @@ from EvolvedModelClass import EvolvedModel as EvMod
 from RayClass import Ray
 
 def main():
-    test_gaunt_func()
-    plt.figure()
-    test_gaunt_table()
-    plt.show()
+    test_ff_funcs()
+
+###
+# Bremsstrahlung Calculator Tests
+###
+
+def test_gaunt_table():
+#def main():
+    """
+    Test that the table of gaunt factors is being loaded in correctly
+    """
+    FFCalc = rt.BremCalculator()
+
+    gff = np.loadtxt('gauntff.dat') # rows: constant u; columns: constant gamma^2
+
+    N_u, N_g = 146, 81
+    gff = gff[:N_u]
+
+    log_u_grid    = np.linspace(-16, -16 + (N_u*0.2), N_u)
+    log_gam2_grid = np.linspace( -6,  -6 + (N_g*0.2), N_g)
+
+    xx, yy = np.meshgrid( log_u_grid, log_gam2_grid )
+
+    plt.contourf(-yy.T, xx.T, np.log10(gff), levels=np.linspace(-2,2,30) )
+    plt.colorbar()
+
+    plt.contour(-yy.T, xx.T, np.log10(gff), levels=[-1,0,1], colors='k', linewidths=2)
+
+    plt.plot([0,0],[-3,3],'k')
+    plt.plot([-3,0],[3,0],'k')
+    plt.plot([-4,2],[0,0],'k')
+    plt.plot([-4,0],[-2,0],'k')
+
+    plt.ylabel('log $u$')
+    plt.xlabel('log $\gamma^2$')
+
+    plt.xlim(-4,2)
+    plt.ylim(-3,3)
+
+    #plt.show()
 
 def test_gaunt_func():
 #def main():
+    """
+    Test that the interpolation function is working correctly
+    """
     FFCalc = rt.BremCalculator()
 
     embiggen = 1
@@ -48,37 +87,68 @@ def test_gaunt_func():
 
     #plt.show()
     
-def test_gaunt_table():
-#def main():
+
+def test_ff_funcs():
+    """
+    Test that calc_j_nu_therm(), 
+    calc_L_nu_therm(),
+    calc_al_BB(), and
+    calc_al_from_S()
+    are all working as expected
+    """
+
+    N_cells = 2
+    r1 = np.linspace(1e15,2e15, N_cells)
+    r2 = np.linspace(2e15,3e15, N_cells)
+    rho = 1e-19*np.ones(N_cells)
+    T = 1e4*np.ones(N_cells)
+    p = (rho/C.M_P) * C.K_B*T
+    u = 1.5*p
+    v = 1e8 * np.ones(N_cells)
+
+    test_ray = Ray( (r1, r2, rho, T, p, v, u), u_per_cc=True)
+    test_ray.set_n_e()
+    test_ray.set_n_I()
+
+    nu = np.linspace(5, 30, 3)*1e9
+    
     FFCalc = rt.BremCalculator()
 
-    gff = np.loadtxt('gauntff.dat') # rows: constant u; columns: constant gamma^2
+    # The new functions that use the gaunt factor:
+    j_nu = FFCalc.calc_j_nu_therm(test_ray, 1, nu)
+    al = FFCalc.calc_al_BB(test_ray, 1, nu)
+    therm = rt.B_nu(test_ray, nu)
 
-    N_u, N_g = 146, 81
-    gff = gff[:N_u]
+    # related quantities for comparison:
+    raltay = 2*C.C_LIGHT**-2 * C.K_B * np.outer(nu**2, T)
+    source = j_nu/al
 
-    log_u_grid    = np.linspace(-16, -16 + (N_u*0.2), N_u)
-    log_gam2_grid = np.linspace( -6,  -6 + (N_g*0.2), N_g)
+    # Qualitative and quantitative comparisons for expectation:
+    diff = np.max(abs(therm - raltay)/therm)
+    print('Max fractional difference between blackbody and Raleigh-Taylor: {:.2e}'.format(diff))
 
-    xx, yy = np.meshgrid( log_u_grid, log_gam2_grid )
+    diff = np.max(abs(therm - source)/therm)
+    print('Max fractional difference between blackbody and j_nu/alpha: {:.2e}'.format(diff))
 
-    plt.contourf(-yy.T, xx.T, np.log10(gff), levels=np.linspace(-2,2,30) )
-    plt.colorbar()
+    plt.loglog( nu, therm[:,0])
+    plt.loglog( nu, raltay[:,0], ls=':' )
+    plt.loglog( nu, (j_nu/al)[:,0], ls='--')
 
-    plt.contour(-yy.T, xx.T, np.log10(gff), levels=[-1,0,1], colors='k', linewidths=2)
+    
+    # Absorption should lead to alpha propto nu^-2.1 and  flux propto nu^-0.1
+    delta_al = al[:2,0]/al[1:,0]
+    delta_nu = nu[:2]/nu[1:]
+    al_slp = np.log10(delta_al)/np.log10(delta_nu)
+    print('Power law slope for alpha propto nu^slope (expect -2.1): '+str(al_slp))
 
-    plt.plot([0,0],[-3,3],'k')
-    plt.plot([-3,0],[3,0],'k')
-    plt.plot([-4,2],[0,0],'k')
-    plt.plot([-4,0],[-2,0],'k')
+    tau = np.sum(al * (r2 - r1), axis=1)
+    flux_abs = (therm.T*tau).T
+    delta_f = flux_abs[:2,0]/flux_abs[1:,0]
+    f_slp = np.log10(delta_f)/np.log10(delta_nu)
+    print( 'Power law slope for flux propto nu^slope (expect -0.1): '+str(f_slp) )
 
-    plt.ylabel('log $u$')
-    plt.xlabel('log $\gamma^2$')
+    plt.show()
 
-    plt.xlim(-4,2)
-    plt.ylim(-3,3)
-
-    #plt.show()
 
 def main1():
     rhocsm = 1e-16

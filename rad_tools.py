@@ -5,6 +5,7 @@ import Const             as C
 from scipy.special import gamma as gamfunc
 import scipy.interpolate as sint
 
+
 def get_sol_abun_mfrac():
     """
     Returns an array of solar abundances of the elements by mass fraction
@@ -87,6 +88,11 @@ def calc_ioniz_T(A, i, n_e):
     #
     #return T;
 
+def B_nu(a_ray, a_nu):
+    numer = 2 * C.H * a_nu**3 * C.C_LIGHT**-2
+    denom = np.exp( np.outer(C.H*a_nu, 1/(C.K_B*a_ray.T_gas)) ) - 1
+    B_nu = numer * (1/denom).T
+    return B_nu.T
 
 class RelE(object):
 # A class for managing relativistic electron properties
@@ -430,6 +436,13 @@ class ComptonCalculator(object):
 
 
 class BremCalculator(object):
+    """
+    In the functions of this class, inputs are
+    a_ray     : Ray     : contains the gas properties; see RayClass
+    a_Z       : int     : nuclear charge of the species to calculate on
+    a_nu      : float[] : array of frequencies to calculate for, in Hz
+    a_f_therm : float   : thermal fraction of the gas (default is 1.0)
+    """
     def __init__(self):
         """
         When you call gaunt_func(), note that it expects x and y coordinates
@@ -470,7 +483,7 @@ class BremCalculator(object):
         log_u = np.log10(np.outer(C.H*a_nu, 1/(C.K_B*a_ray.T_gas)))
         # ratio of the gas energy to the ionization energy, 
         # reshaped to be usable with log_u
-        log_gam2 = np.tile(np.log10((C.RYD_EN*a_Z**2)/(C.K_B*a_ray.T_gas))).reshape(u.shape)
+        log_gam2 = np.tile(np.log10((C.RYD_EN*a_Z**2)/(C.K_B*a_ray.T_gas)), a_nu.size).reshape(log_u.shape)
         
         # Return the tabulated value of the thermall-averaged
         # gaunt function. Note that this array is one-dimensional
@@ -480,7 +493,7 @@ class BremCalculator(object):
         return gff.reshape(log_u.shape)
 
 
-    def calc_j_nu_therm(self, a_ray, a_Z, a_nu, a_gaunt=1.2, a_f_therm=1.0):
+    def calc_j_nu_therm(self, a_ray, a_Z, a_nu, a_f_therm=1.0):
         """
         Calculates the specific free-free emissivity from a Maxwellian electron distribution
         Units of returned value: erg s^-1 cm^-3 Hz^-1 str^-1
@@ -489,16 +502,17 @@ class BremCalculator(object):
         assert len(a_ray.n_I) == len(a_ray)
 
         # R&L Eqn 5.14b
-        csm_vect = 6.8e-38/(4*C.PI) * a_gaunt * a_Z**2 * a_ray.n_e*a_f_therm * a_ray.n_I * (a_ray.T_gas)**-0.5 
+        csm_vect = 6.8e-38/(4*C.PI) * a_Z**2 * a_ray.n_e*a_f_therm * a_ray.n_I * (a_ray.T_gas)**-0.5  # one-d
         e_frac = np.outer( -C.H*a_nu, 1.0/(C.K_B*a_ray.T_gas) ) # rows - nu, cols - mass coords
+        gff = self.get_gaunt(a_ray, a_Z, a_nu) # rows - nu; cols - mass coords
 
-        j_nu = csm_vect * np.exp(e_frac)  # rows - nu, cols - mass coords
+        j_nu = csm_vect * gff * np.exp(e_frac)  # rows - nu, cols - mass coords
 
         return j_nu
 
     
-    def calc_L_nu_therm(self, a_ray, a_Z, a_nu, a_gaunt=1.2, a_f_therm=1.0):
-        j_nu_therm = self.calc_j_nu_therm( a_ray, a_Z, a_nu, a_gaunt, a_f_therm)
+    def calc_L_nu_therm(self, a_ray, a_Z, a_nu, a_f_therm=1.0):
+        j_nu_therm = self.calc_j_nu_therm( a_ray, a_Z, a_nu, a_f_therm)
         vols = a_ray.cell_volume()
         return 4*C.PI*np.sum( j_nu_therm*vols, axis=1 )
 
@@ -507,6 +521,7 @@ class BremCalculator(object):
         """
         Calculates the total free-free emissivity from a Maxwellian electron distribution
         Units of returned value: erg s^-1 cm^-3 str^-1
+        a_gaunt   : float   : the gaunt factor to use (only required for some functions)
         """
         # allowing for relativistic correction
         # assuming Maxwellian distribution for electrons
@@ -516,28 +531,32 @@ class BremCalculator(object):
         return a_gaunt*1.4e-27/(4*C.PI) * a_Z**2 * a_ray.n_e*a_f_therm * a_ray.n_I * (a_ray.T_gas)**0.5 * (1 + 4.4e-10*a_ray.T_gas)
 
 
-    def calc_al_BB(self, a_ray, a_Z, a_nu, a_gaunt=1.2, a_f_therm=1.0):
+    def calc_al_BB(self, a_ray, a_Z, a_nu, a_f_therm=1.0):
         """
         Calculates the free-free absorption at all nu, assuming blackbody source function
         Units of returned value : cm^-1
         """
-        # R&L Eqn 5.19b, modified to have nu^-2.1 instead of 2
+        # R&L Eqn 5.19b
         # assuming n_e = n_I 
         assert len(a_ray.n_e) > 0
         assert len(a_ray.n_I) > 0
 
         exp_pow = np.outer(C.H*a_nu, 1.0/(C.K_B*a_ray.T_gas))
+        # not in Rayleigh-Jeans limit:
         if np.any(exp_pow > 0.1):
             i_not_RJ = np.where(exp_pow>0.1)[0]
             print('free-free absorption not Rayleigh-Jeans limit between cells {} and {}'.format(min(i_not_RJ),max(i_not_RJ)))
-            const = 3.7e8 *a_Z**2 *a_gaunt
+            const = 3.7e8 *a_Z**2 
             csm_vect = a_ray.T_gas**-0.5 * a_ray.n_e*a_f_therm * a_ray.n_I 
             exp_pow = np.outer(-C.H*a_nu, 1.0/(C.K_B*a_ray.T_gas))
-            al = const * np.outer(a_nu**-3, csm_vect) * (1 - np.exp(exp_pow))
-        else:
-            const = 0.018 *a_Z**2 *a_gaunt
+            gff = self.get_gaunt(a_ray, a_Z, a_nu)
+            al = const * np.outer(a_nu**-3, csm_vect) * (1 - np.exp(exp_pow)) * gff
+        # in Rayleigh-Jeans limit:
+        else: 
+            const = 0.018 *a_Z**2 
+            gff = self.get_gaunt(a_ray, a_Z, a_nu)
             csm_vect = a_ray.T_gas**-1.5 * a_ray.n_e*a_f_therm * a_ray.n_I 
-            al = const * np.outer(a_nu**-2.1, csm_vect)
+            al = const * gff * np.outer(a_nu**-2, csm_vect)
 
         return al
         
@@ -546,21 +565,24 @@ class BremCalculator(object):
         """
         Calculates the Rosseland mean absorption to free-free
         Units of returned value : cm^-1
+        a_gaunt   : float   : the gaunt factor to use (only required for some functions)
         """
         # R&L Eqn 5.20
         assert a_ray.n_e != None
         assert a_ray.n_I != None
+
         return 1.7e-25 * (a_ray.T_gas)**-3.5 * a_Z**2 * a_ray.n_e*a_f_therm * a_ray.n_I * a_gaunt
 
 
-    def calc_al_from_S(self, a_ray, a_Z, a_nu, a_S_nu, a_gaunt=1.2, a_f_therm=1.0):
+    def calc_al_from_S(self, a_ray, a_Z, a_nu, a_S_nu, a_f_therm=1.0):
         """
         Calculates absorption at all a_nu, assuming source function a_S_nu
         (corresponding to frequencies in a_nu) and thermal electrons.
+        a_S_nu    : float[] : the source function in units of erg s^-1 cm^-2 str^-1 Hz^-1
         """
         # assuming electrons are thermal but source is not
         # Kirchov's law
-        j_nu = self.calc_j_nu_therm(a_ray, a_Z, a_nu, a_gaunt, a_f_therm)
+        j_nu = self.calc_j_nu_therm(a_ray, a_Z, a_nu, a_f_therm=1.0)
         return j_nu/a_S_nu
 
 
