@@ -3,6 +3,36 @@ import numpy             as np
 import Const             as C
 #import scipy.optimize    as optim
 from scipy.special import gamma as gamfunc
+import scipy.interpolate as sint
+
+def get_sol_abun_mfrac():
+    """
+    Returns an array of solar abundances of the elements by mass fraction
+    from Grevesse & Sauval, 1998, Space Sci. Rev. 85, 161
+    http://nova.astro.umd.edu/Tlusty2002/solar-abun.html
+    """
+    abun = [7.04e-01, 2.80e-01, 6.10e-11, 1.58e-10, 3.78e-09, 2.78e-03, 8.14e-04, 
+            7.56e-03, 4.18e-07, 1.69e-03, 3.43e-05, 6.45e-04, 5.56e-05, 6.96e-04, 
+            6.10e-06, 4.79e-04, 7.83e-06, 7.01e-05, 3.60e-06, 6.41e-05, 4.64e-08, 
+            3.50e-06, 3.56e-07, 1.70e-05, 9.42e-06, 1.23e-03, 3.42e-06, 7.29e-05, 
+            7.20e-07, 1.82e-06]
+
+    return np.array(abun)
+
+def get_sol_abun_nfrac():
+    """
+    Returns an array of solar abundances of the elements by number density 
+    relative to H
+    from Grevesse & Sauval, 1998, Space Sci. Rev. 85, 161
+    http://nova.astro.umd.edu/Tlusty2002/solar-abun.html
+    """
+    abun = [1.00e-00, 1.00e-01, 1.26e-11, 2.51e-11, 5.01e-10, 3.31e-04, 8.32e-05,
+            6.76e-04, 3.16e-08, 1.20e-04, 2.14e-06, 3.80e-05, 2.95e-06, 3.55e-05,
+            2.82e-07, 2.14e-05, 3.16e-07, 2.51e-06, 1.32e-07, 2.29e-06, 1.48e-09,
+            1.05e-07, 1.00e-08, 4.68e-07, 2.45e-07, 3.16e-05, 8.32e-08, 1.78e-06,
+            1.62e-08, 3.98e-08]
+    return np.array(abun)
+
 
 def get_ioniz_en(A, i):
 # Get the ionization energy (in eV) for ion
@@ -173,6 +203,7 @@ class SynchrotronCalculator(object):
         Calculate the critical frequency 
           nu_crit = gamma_min**2 * nu_syn
         for each cell in a_ray
+        Assumes p=3
         """
         numer_fact = np.sqrt(2/np.pi) * C.E_ESU * C.C_LIGHT * C.M_E_ERG**-3 
 
@@ -240,7 +271,7 @@ class SynchrotronCalculator(object):
 
         C_E = C.M_E_ERG**(self.elec.p-1) *self.calc_C(a_ray, a_fNT)
 
-        Bmag = np.sqrt(8*C.PI*self.elec.eps_e*a_ray.u_gas)
+        Bmag = np.sqrt(8*C.PI*self.eps_B*a_ray.u_gas)
 
         # R&L Eqn 6.53
         al = np.sqrt(3)*C.E_ESU**3 / (8*C.PI*C.M_E)
@@ -266,7 +297,7 @@ class SynchrotronCalculator(object):
         j_nu = self.calc_j_nu( a_nu_Hz, a_ray, a_fNT )
         vols = a_ray.cell_volume()
 
-        return np.sum( j_nu * vols, axis=1 )  # sum up contribution from each cell
+        return 4 *C.PI *np.sum( j_nu * vols, axis=1 )  # sum up contribution from each cell
 
 
 class ComptonCalculator(object):
@@ -400,7 +431,53 @@ class ComptonCalculator(object):
 
 class BremCalculator(object):
     def __init__(self):
-        self.a_var = 0
+        """
+        When you call gaunt_func(), note that it expects x and y coordinates
+        flattened! 
+        """
+        # the only member variable of this class is the function for 
+        # calculating the thermally-averaged gaunt factor; because
+        # I only want to have to make this function once! 
+        # Thermally-averaged gaunt factors as tabulated by:
+        #   van Hoof P.A.M., Williams R.J.R., Volk K., Chatzikos M., Ferland G.J., Lykins M., Porter R.L., Wang Y.
+        #   "Accurate determination of the free-free Gaunt factor, I -- non-relativistic Gaunt factors"
+        #   2014, MNRAS, 444, 420
+        # The authors tabulate this for different values of u and gamma^2 where
+        # u = h*nu / (k*T_e)
+        # gamma^2 = Z**2 * Ryd / (k*T_e)
+        print('Cite van Hoof et al. (2014) if you publish with this!')
+
+        # Load the table of gaunt factors
+        gff = np.loadtxt('gauntff.dat')
+        # Make u and gamma^2 grids for the interpolation
+
+        # number of u and gamma^2 values in the table I have
+        N_u, N_g = 149, 81 
+        # rows correspond to different u-values; columns are different gamma^2-values
+        gff = gff[:N_u] # rows after this are errors
+
+        # the grid of u and gamma values explored in the table:
+        x = np.linspace(-16, -16 + (N_u*0.2), N_u) # I want u to correspond to x
+        y = np.linspace( -6,  -6 + (N_g*0.2), N_g) # and gamma^2 to y
+
+        # The interpolaton function
+        self.gaunt_func = sint.RectBivariateSpline(x, y, gff)
+
+
+    def get_gaunt(self, a_ray, a_Z, a_nu):
+        # Using the notation of van Hoof et al. : 
+        # ratio of the photon energy to the mean gas energy
+        log_u = np.log10(np.outer(C.H*a_nu, 1/(C.K_B*a_ray.T_gas)))
+        # ratio of the gas energy to the ionization energy, 
+        # reshaped to be usable with log_u
+        log_gam2 = np.tile(np.log10((C.RYD_EN*a_Z**2)/(C.K_B*a_ray.T_gas))).reshape(u.shape)
+        
+        # Return the tabulated value of the thermall-averaged
+        # gaunt function. Note that this array is one-dimensional
+        # and needs to be reshaped!
+        gff = self.gaunt_func.ev( log_u.flatten(), log_gam2.flatten() )
+
+        return gff.reshape(log_u.shape)
 
 
     def calc_j_nu_therm(self, a_ray, a_Z, a_nu, a_gaunt=1.2, a_f_therm=1.0):
@@ -413,11 +490,17 @@ class BremCalculator(object):
 
         # R&L Eqn 5.14b
         csm_vect = 6.8e-38/(4*C.PI) * a_gaunt * a_Z**2 * a_ray.n_e*a_f_therm * a_ray.n_I * (a_ray.T_gas)**-0.5 
-
         e_frac = np.outer( -C.H*a_nu, 1.0/(C.K_B*a_ray.T_gas) ) # rows - nu, cols - mass coords
+
         j_nu = csm_vect * np.exp(e_frac)  # rows - nu, cols - mass coords
 
         return j_nu
+
+    
+    def calc_L_nu_therm(self, a_ray, a_Z, a_nu, a_gaunt=1.2, a_f_therm=1.0):
+        j_nu_therm = self.calc_j_nu_therm( a_ray, a_Z, a_nu, a_gaunt, a_f_therm)
+        vols = a_ray.cell_volume()
+        return 4*C.PI*np.sum( j_nu_therm*vols, axis=1 )
 
 
     def calc_j_tot(self, a_ray, a_Z, a_gaunt=1.2, a_f_therm=1.0):
@@ -438,15 +521,23 @@ class BremCalculator(object):
         Calculates the free-free absorption at all nu, assuming blackbody source function
         Units of returned value : cm^-1
         """
-        # R&L Eqn 5.19b
+        # R&L Eqn 5.19b, modified to have nu^-2.1 instead of 2
         # assuming n_e = n_I 
-        assert a_ray.n_e != None
-        assert a_ray.n_I != None
+        assert len(a_ray.n_e) > 0
+        assert len(a_ray.n_I) > 0
 
-        const = 3.7e8 *a_Z**2 *a_gaunt
-        csm_vect = a_ray.T_gas**-0.5 * a_ray.n_e*a_f_therm * a_ray.n_I 
-        exp_pow = np.outer(-C.H*a_nu, 1.0/(C.K_B*a_ray.T_gas))
-        al = const * np.outer(a_nu**-3, csm_vect) * (1 - np.exp(exp_pow))
+        exp_pow = np.outer(C.H*a_nu, 1.0/(C.K_B*a_ray.T_gas))
+        if np.any(exp_pow > 0.1):
+            i_not_RJ = np.where(exp_pow>0.1)[0]
+            print('free-free absorption not Rayleigh-Jeans limit between cells {} and {}'.format(min(i_not_RJ),max(i_not_RJ)))
+            const = 3.7e8 *a_Z**2 *a_gaunt
+            csm_vect = a_ray.T_gas**-0.5 * a_ray.n_e*a_f_therm * a_ray.n_I 
+            exp_pow = np.outer(-C.H*a_nu, 1.0/(C.K_B*a_ray.T_gas))
+            al = const * np.outer(a_nu**-3, csm_vect) * (1 - np.exp(exp_pow))
+        else:
+            const = 0.018 *a_Z**2 *a_gaunt
+            csm_vect = a_ray.T_gas**-1.5 * a_ray.n_e*a_f_therm * a_ray.n_I 
+            al = const * np.outer(a_nu**-2.1, csm_vect)
 
         return al
         
@@ -475,7 +566,7 @@ class BremCalculator(object):
 
 class HalCalculator(object):
     def __init__(self):
-        self.nu_Lya = 3.28984196036e+15 # Hz    
+        self.nu_Lyc = 3.28984196036e+15 # Hz    
         self.nu_Hal = 4.567918e+14 # Hz
         self.al_A = 4.2e-13 # cm^3 s^-1 case A 
         self.al_B = 2.6e-13 # cm^3 s^-1 case B
@@ -485,11 +576,11 @@ class HalCalculator(object):
 
 
     def calc_xsec(self, a_nu):
-        xsec = (C.SIGMA_TOT/self.nu_Lya) * (a_nu/self.nu_Lya)**-3
+        xsec = (C.SIGMA_TOT/self.nu_Lyc) * (a_nu/self.nu_Lyc)**-3
         try:
-            xsec[a_nu < self.nu_Lya] = 0.0
+            xsec[a_nu < self.nu_Lyc] = 0.0
         except TypeError:
-            if a_nu < self.nu_Lya: 
+            if a_nu < self.nu_Lyc: 
                 xsec = 0.0
         return xsec
 
@@ -625,7 +716,6 @@ def calc_inverse_mu_I(spec_A, mass_fracs):
     if type(mass_fracs ) != np.ndarray: mass_fracs  = np.array(mass_fracs )
 
     return sum( mass_fracs / spec_A )
-
 
 
 
