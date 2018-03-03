@@ -5,6 +5,8 @@ import Const             as C
 from scipy.special import gamma as gamfunc
 import scipy.interpolate as sint
 
+import matplotlib.pyplot as plt
+import matplotlib.cm as pcm
 
 def get_sol_abun_mfrac():
     """
@@ -252,7 +254,8 @@ class SynchrotronCalculator(object):
 
         numer_const = C.SIGMA_TH * C.C_LIGHT / (6 * np.pi)
      
-        csm_vect = self.calc_C(a_ray, a_fNT) * self.eps_B * a_ray.u_gas
+        csm_vect = self.calc_C(a_ray, a_fNT) * self.eps_B * a_ray.u_gas 
+        #      leave eps_B here for generalizing p ^^^
 
         # only valid for p=3:
         j_nu =  numer_const *  np.outer( 1/a_nu_Hz, csm_vect ) 
@@ -288,6 +291,36 @@ class SynchrotronCalculator(object):
         fin_al = np.outer( a_nu_Hz**(-0.5*(self.elec.p + 4)), al )
 
         return fin_al
+
+    
+    def calc_S_nu( self, a_nu_Hz, a_ray, a_fNT=1. ):
+        """
+        Calculate the source function (j_nu/alpha) for synchrotron self-absorption.
+        Assumes p=3
+        """
+
+        if self.elec.p!=3:
+            print('Sorry, I\'m not set up for p=/=3 yet!')
+            return None
+
+        GG = gamfunc(11/12.) * gamfunc(31/12.) # for p=3
+
+        numer_const = (0.5*C.PI)**(11./4) / (3*GG)
+        numer_const *= C.SIGMA_TH * np.sqrt( C.M_E**7 * C.C_LIGHT**9 * C.E_ESU**-9 )
+
+        csm_vect = (self.eps_B * a_ray.u_gas)**(-1./4)
+
+        S_nu =  numer_const *  np.outer( a_nu_Hz**2.5, csm_vect ) 
+
+        nu_syn = self.calc_nu_syn( a_ray )
+        
+        below_crit = np.outer(a_nu_Hz, 1/nu_syn) < 1
+        if np.any(below_crit):
+            # p=3 only:
+            jnu_if_below = numer_const * np.outer( a_nu_Hz**(23./6) , csm_vect*nu_syn**(-4./3) )
+            j_nu[below_crit] = jnu_if_below[below_crit]
+
+        return S_nu
 
     
     def calc_tau( self, a_nu_Hz, a_ray, a_fNT=1. ):
@@ -740,6 +773,88 @@ def calc_inverse_mu_I(spec_A, mass_fracs):
     return sum( mass_fracs / spec_A )
 
 
+def calc_F_nu(a_ray, a_nu, a_S_nu, a_alpha, N_mu=10):
+    """
+    Do a bit of 'ray tracing' (not to be confused with the radial gas profile being called a 'ray')
+    to get the flux from a 1d model at a certain time
+    a_ray     : Ray     : contains the gas properties; see RayClass
+    a_nu      : float[] : array of frequencies to calculate for, in Hz
+    a_S_nu    : float[] : the source function (units erg s^-1 cm^-2 str^-1 Hz^-1) for each frequency and cell (shape (a_nu.size, a_ray.size()))
+    a_alpha   : float[] : extinction coefficient (units cm^-1) for each frequency and cell (shape (a_nu.size, a_ray.size()))
+    N_mu      : int     : number of angles to do (mu = cos(theta)) 
+    """
+    assert a_S_nu.shape  == (a_nu.size, a_ray.size())
+    assert a_alpha.shape == (a_nu.size, a_ray.size())
+    
+    # grid of cos(theta), with theta being the angle to the vertical
+    # recall: small mu = large angle from vertical
+    # we are calculating the flux at the surface
+    # so our photon paths start at the surface (end of the ray) 
+    # and look inward at different angles
+    mu_nodes = np.linspace(0, 1, N_mu+1)
+    dmu = 1/N_mu
+    mus = np.linspace(dmu/2, 1-dmu/2, N_mu)
+
+    # the widest angle at which a line anchored to the outside of the ray (r2[-1])
+    # intersects the core of the ray (r1[0])
+    th_lim = np.arcsin( a_ray.r1[0]/a_ray.r2[-1] )
+    mu_lim = np.cos(th_lim)
+    # the number of angles that don't intersect the core
+    N_mu_wide = sum( mus < mu_lim )
+
+    # Imagine the observer is looking down the x-axis, and the distance
+    # away from the x-axis is z. 
+    # The simulation goes from z0 = a_ray.r1[0] to z1 = a_ray.r2[-1]
+    # For angles smaller than th_lim, paths intersect z0 and thus all 
+    # cells in the ray get used.
+    # But for wider angles paths are a chord down the 
+    # x-axis at a certain z (z0 < z < z1). For these cases,
+    # we will need to throw away cell from the ray that have r < z_intersect,
+    # because the chord won't intersect them
+    z_intersect = a_ray.r2[-1] * np.sin(np.arccos(mus)) 
+
+    # the radial extent of cells for mu=1
+    dr = a_ray.r2 - a_ray.r1
+
+    I_nu = np.zeros((a_nu.size, mus.size))
+
+    def calc_I_nu(dtau, S_nu, lbl=''):
+        tau_prof = np.cumsum(dtau, axis=1)
+        tau_btwn = (tau_prof[:,-1] - tau_prof.T).T
+
+        return np.sum( dtau * S_nu * np.exp(-tau_btwn), axis=1 )
+
+    for i in range(N_mu_wide):
+        # need to ignore cells that the path does not cross
+        N_toss = sum( a_ray.r2 < z_intersect[i] )
+        N_keep = len(a_ray) - N_toss 
+        
+        # the path length through each cell
+        x_out = np.sqrt(a_ray.r2[N_toss:]**2 - z_intersect[i]**2)
+        x_in  = np.sqrt(a_ray.r1[N_toss:]**2 - z_intersect[i]**2)
+        x_in[0] = 0        
+        ds = x_out - x_in
+
+        dtau = a_alpha[:,N_toss:] * ds
+
+        # "reflect" the ray to get the back side of the chord
+        full_dtau = np.concatenate( (dtau[:,::-1], dtau), axis=1 )
+        full_S_nu = np.concatenate( ((a_S_nu[:,N_toss:])[:,::-1], a_S_nu[:,N_toss:]), axis=1 )
+
+        I_nu[:,i] = calc_I_nu(full_dtau, full_S_nu, lbl=mus[i])
+
+    for i in range(N_mu_wide, mus.size):
+        x_out = np.sqrt(a_ray.r2**2 - z_intersect[i]**2)
+        x_in  = np.sqrt(a_ray.r1**2 - z_intersect[i]**2)
+        ds = x_out - x_in
+
+        dtau = a_alpha * ds
+
+        I_nu[:,i] = calc_I_nu(dtau, a_S_nu)
+
+    F_nu = 2*C.PI * np.sum( I_nu * mus * dmu, axis=1 )
+
+    return F_nu
 
 
 def solve_ion_Saha():

@@ -8,7 +8,7 @@ from EvolvedModelClass import EvolvedModel as EvMod
 from RayClass import Ray
 
 def main():
-    test_ff_funcs()
+    test_F_nu_calc()
 
 ###
 # Bremsstrahlung Calculator Tests
@@ -88,18 +88,11 @@ def test_gaunt_func():
     #plt.show()
     
 
-def test_ff_funcs():
-    """
-    Test that calc_j_nu_therm(), 
-    calc_L_nu_therm(),
-    calc_al_BB(), and
-    calc_al_from_S()
-    are all working as expected
-    """
-
-    N_cells = 2
-    r1 = np.linspace(1e15,2e15, N_cells)
-    r2 = np.linspace(2e15,3e15, N_cells)
+def construct_test_ray(N_cells=2):
+    r0 = 1e15
+    dr = 1e14
+    r1 = np.linspace(r0, r0+N_cells*dr, N_cells)
+    r2 = np.linspace(r0+dr, r0+(N_cells+1)*dr, N_cells)
     rho = 1e-19*np.ones(N_cells)
     T = 1e4*np.ones(N_cells)
     p = (rho/C.M_P) * C.K_B*T
@@ -109,6 +102,20 @@ def test_ff_funcs():
     test_ray = Ray( (r1, r2, rho, T, p, v, u), u_per_cc=True)
     test_ray.set_n_e()
     test_ray.set_n_I()
+
+    return test_ray
+
+
+def test_ff_funcs():
+    """
+    Test that calc_j_nu_therm(), 
+    calc_L_nu_therm(),
+    calc_al_BB(), and
+    calc_al_from_S()
+    are all working as expected
+    """
+
+    test_ray = construct_test_ray()
 
     nu = np.linspace(5, 30, 3)*1e9
     
@@ -147,6 +154,25 @@ def test_ff_funcs():
     f_slp = np.log10(delta_f)/np.log10(delta_nu)
     print( 'Power law slope for flux propto nu^slope (expect -0.1): '+str(f_slp) )
 
+    plt.show()
+
+
+def test_F_nu_calc():
+
+    ray = construct_test_ray(N_cells=3)
+
+    syncalc = rt.SynchrotronCalculator() # a synchrotron calculator; note it assumes p=3 and eps_B = 0.1
+    f_NT = 0.01
+
+    nu = np.array([4.9e9, 8.5e9, 15e9, 22.5e9])
+
+    al = syncalc.calc_alpha(nu, ray, f_NT)
+    j_nu = syncalc.calc_j_nu(nu, ray, f_NT)
+    S_nu = j_nu/al
+
+    F_nu = rt.calc_F_nu(ray, nu, S_nu, al, N_mu=10)
+
+    plt.loglog(nu, F_nu)
     plt.show()
 
 
