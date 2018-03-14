@@ -8,6 +8,9 @@ import scipy.interpolate as sint
 import matplotlib.pyplot as plt
 import matplotlib.cm as pcm
 
+#import multiprocessing as mproc
+#N_proc = 2
+
 def get_sol_abun_mfrac():
     """
     Returns an array of solar abundances of the elements by mass fraction
@@ -821,11 +824,15 @@ def calc_F_nu(a_ray, a_nu, a_S_nu, a_alpha, N_mu=10):
 
     I_nu = np.zeros((a_nu.size, mus.size))
 
-    def calc_I_nu(dtau, S_nu, lbl=''):
+    def calc_I_nu(dtau, S_nu):
         tau_prof = np.cumsum(dtau, axis=1)
         tau_btwn = (tau_prof[:,-1] - tau_prof.T).T
 
         return np.sum( dtau * S_nu * np.exp(-tau_btwn), axis=1 )
+
+#    def proc_do(conn, dtau, S_nu):
+#        conn.send( calc_I_nu(dtau, S_nu) )
+#        conn.close()
 
     for i in range(N_mu_wide):
         # need to ignore cells that the path does not cross
@@ -844,8 +851,7 @@ def calc_F_nu(a_ray, a_nu, a_S_nu, a_alpha, N_mu=10):
         full_dtau = np.concatenate( (dtau[:,::-1], dtau), axis=1 )
         full_S_nu = np.concatenate( ((a_S_nu[:,N_toss:])[:,::-1], a_S_nu[:,N_toss:]), axis=1 )
 
-        I_nu[:,i] = calc_I_nu(full_dtau, full_S_nu, lbl=mus[i])
-        #print(max(I_nu[:,i]))
+        I_nu[:,i] = calc_I_nu(full_dtau, full_S_nu)
 
     for i in range(N_mu_wide, mus.size):
         x_out = np.sqrt(a_ray.r2**2 - z_intersect[i]**2)
