@@ -120,8 +120,11 @@ class RelE(object):
           gammin = (p-2)/(p-1) * eps_e * u_gas / (f_NT * n_e * m_e * c^2 )
         for each cell in a_ray
         """
-       
-        return float(self.p-2)/(self.p-1) * (self.eps_e * a_ray.u_gas) / (a_fNT * a_ray.n_e * C.M_E_ERG )
+        prat = float(self.p-2)/(self.p-1)
+        u_e = self.eps_e * a_ray.u_gas
+        u_other = a_fNT * a_ray.n_e * C.M_E_ERG 
+
+        return prat * u_e/u_other
 
 
     def calc_C( self, a_ray, a_fNT=0.01 ):
@@ -578,7 +581,7 @@ class BremCalculator(object):
         # not in Rayleigh-Jeans limit:
         if np.any(exp_pow > 0.1):
             i_not_RJ = np.where(exp_pow>0.1)[0]
-            print('free-free absorption not Rayleigh-Jeans limit between cells {} and {}'.format(min(i_not_RJ),max(i_not_RJ)))
+            #print('free-free absorption not Rayleigh-Jeans limit between cells {} and {}'.format(min(i_not_RJ),max(i_not_RJ)))
             const = 3.7e8 *a_Z**2 
             csm_vect = a_ray.T_gas**-0.5 * a_ray.n_e*a_f_therm * a_ray.n_I 
             exp_pow = np.outer(-C.H*a_nu, 1.0/(C.K_B*a_ray.T_gas))
@@ -831,8 +834,8 @@ def calc_F_nu(a_ray, a_nu, a_S_nu, a_alpha, N_mu=10):
         
         # the path length through each cell
         x_out = np.sqrt(a_ray.r2[N_toss:]**2 - z_intersect[i]**2)
-        x_in  = np.sqrt(a_ray.r1[N_toss:]**2 - z_intersect[i]**2)
-        x_in[0] = 0        
+        x_in = np.zeros_like(x_out)
+        x_in[1:]  = np.sqrt(a_ray.r1[N_toss+1:]**2 - z_intersect[i]**2)
         ds = x_out - x_in
 
         dtau = a_alpha[:,N_toss:] * ds
@@ -842,6 +845,7 @@ def calc_F_nu(a_ray, a_nu, a_S_nu, a_alpha, N_mu=10):
         full_S_nu = np.concatenate( ((a_S_nu[:,N_toss:])[:,::-1], a_S_nu[:,N_toss:]), axis=1 )
 
         I_nu[:,i] = calc_I_nu(full_dtau, full_S_nu, lbl=mus[i])
+        #print(max(I_nu[:,i]))
 
     for i in range(N_mu_wide, mus.size):
         x_out = np.sqrt(a_ray.r2**2 - z_intersect[i]**2)
@@ -851,6 +855,7 @@ def calc_F_nu(a_ray, a_nu, a_S_nu, a_alpha, N_mu=10):
         dtau = a_alpha * ds
 
         I_nu[:,i] = calc_I_nu(dtau, a_S_nu)
+        #print(max(I_nu[:,i]))
 
     F_nu = 2*C.PI * np.sum( I_nu * mus * dmu, axis=1 )
 
