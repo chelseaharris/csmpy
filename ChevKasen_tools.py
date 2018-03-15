@@ -243,14 +243,14 @@ def calc_shell_R_c( t, s, n, f_R, M_csm, M_ej=C.M_CH, delta=1, E_ej=FOE):
     return  t * ( A * g_tothe_n * (4*np.pi/(3-s)) * ((1+f_R)**(3-s)-1) * (1/M_csm) )**(1./(n-3));
 
 
-def calc_t_imp( R_c0, s, n, q, M_ej=C.M_CH, delta=1 ):
+def calc_t_imp( R_c0, s, n, q, M_ej=C.M_CH, delta=1, E_ej=FOE ):
     """                                                                                                                                                                                                   
     Calculates the self-similar impact time given contact discontinuity                                                                                                                                   
     parameters and other parameters as in calc_R_c()                                                                                                                                                      
     """
 
     A = get_A(s, n)
-    g_tothe_n = calc_g_tothe_n(s, n, M_ej, delta)
+    g_tothe_n = calc_g_tothe_n(s, n, M_ej, delta, E_ej)
 
     return (A*g_tothe_n/q)**(-1./(n-3)) * R_c0**((n-s)/(n-3.))
 
