@@ -28,29 +28,21 @@ class EvolvedModel(object):
 
         self.dir = model_dir;
 
+        ray_files = glob.glob(model_dir+'/ray_*') 
+        self.ray_nums = np.sort(np.array([ int((r.split('/')[-1]).split('_')[-1])  for r in ray_files ] ))
+
         if time_fn!='':
             times = [];
             with open(model_dir+'/'+time_fn) as rf:
+                this = 0
                 for line in rf:
                     if line.startswith('WRITING'):
-                        try:
+                        if this in self.ray_nums:  # only add rays we actually have
                             times.append( float( line.split()[-1] ) );
-                        except ValueError:
-                            print('Encountered bad WRITING line:')
-                            print(line)
-                            break
-                    # Introducing new 2-column format for when you start a simulation from a ray
-                    elif len(line.split())==2:
-                        try:
-                            times.append( float( line.split()[1] ) );
-                        except ValueError:
-                            print('Encountered bad WRITING line:')
-                            print(line)
-                            break;
+                        this += 1
             self.times = np.array(times); # times corresponding to ray files
         else:
-            rays = glob.glob(model_dir+'/ray_*')
-            self.times = np.linspace( 0, len(rays) )
+            self.times = np.sort(self.ray_nums.astype(float))
 
         self.tunit = 's'; # ray files have times in seconds
         if tunit_des!='s': self.set_time_unit(tunit_des);
@@ -136,17 +128,16 @@ class EvolvedModel(object):
 
     def get_ray_list(self, skip=1):
     # Generate a list of the ray files corresponding to each time
-        rays = [ 'ray_{0:05d}'.format(i)  for i in range(self.size())[::skip] ];
+        rays = [ 'ray_{0:05d}'.format(rnum)  for rnum in self.ray_nums ];
         return np.array(rays);
 
 
     def get_ray( self, ray_num ):
     # Get the ray and set its time (initialize Ray with proper time)
-        assert ray_num < self.size();
-        # in case I want to do a reverse index... 
-        if ray_num < 0 : ray_num = range(len(self))[ray_num]
+        if type(ray_num)==str and 'ray_' in ray_num:
+            ray_num = int(ray_num.split('_')[-1])
 
-        ray_time = self.times[ray_num] * TimeUnits[self.tunit]; # time in seconds
+        ray_time = self.times[self.ray_nums==ray_num][0] * TimeUnits[self.tunit]; # time in seconds
         return Ray.from_file(self.dir, ray_num, ray_time);
 
     

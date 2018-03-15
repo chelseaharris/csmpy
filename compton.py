@@ -2,7 +2,7 @@
 
 import numpy                 as np
 import scipy                 as spy
-#import matplotlib.pyplot     as plt
+import matplotlib.pyplot     as plt
 import Const                 as C
 
 
@@ -46,6 +46,43 @@ def thermal_variate(num_pts, hnu_min, hnu_max, kT):
     return energies;
 
 
+def arbitrary_variate(num_pts, spec_filename, is_nu=False):
+# Randomly sample a spectrum -- no smoothing of spectrum [yet]
+# INPUTS
+#   num_pts       : number of samples to take
+#   spec_filename : location of spectrum from which to sample;
+#                   expects two-column format, space separated
+#   is_nu         : whether spectrum is in lm, f_lm units or nu, f_nu
+
+    # Load spectrum
+    x, y = np.loadtxt(spec_filename, usecols=[0,1], unpack=True)
+
+    # This is where we'd smooth if we wanted to
+    if is_nu:
+        hnu_spec = x*C.H
+        f_e = y/C.H
+    if not is_nu:
+        # Convert to energy (and per energy) units
+        lm = x * 1e-8  # convert wavelength to cm
+        hnu_spec = C.H * C.C_LIGHT / lm # convert wavelength to energy
+        f_e = x * y / hnu_spec # convert flux to per energy
+        hnu_spec, f_e = hnu_spec[::-1], f_e[::-1] # reverse to have mon inc
+
+    # use the CDF to sample values
+    summed = np.cumsum(f_e) # convert to normed cumsum
+    summed /= summed[-1]
+    #cdf = spy.interpolate.interp1d(hnu_spec, summed) # for higher accuracy
+    
+    # Convenience variables
+    rand = np.random.rand(num_pts)
+    i_closest = map( lambda r: np.argmin(abs(summed-r)), rand )
+    hnu_samp = hnu_spec[i_closest]
+
+    # Return sampled energies
+    return hnu_samp
+        
+
+
 def scatter(gam, beta, hnu_in, mu_in, mu_out):
 # Calculate e_out from a single scatter 
 # INPUTS
@@ -58,40 +95,48 @@ def scatter(gam, beta, hnu_in, mu_in, mu_out):
     return hnu_in * gam**2 * (1+beta*mu_in) * (1-beta*mu_out);
 
 
-def compton(L_background, T_background, show=False):
+def compton(L_background, back_info, show=False):
 # Calculate the optically thin inverse Compton spectrum from a thermal background
 # of photons.
 # INPUTS
-#   L_background : (erg/s) background luminosity
-#   T_background : (K)     background temperature
-#   show         : (bool)  whether or not to show the spectrum
+#   L_background : background luminosity (erg/s)
+#   back_info    : if doing blackbody, this is temperature in K;
+#                  if doing spectrum, this is the file name
+#   show         : whether or not to show the spectrum (bool)  
 #
+    assert type(back_info) in [float, str]
+
     N_p       = int(1e6);                          # number of photon packets
 
     ## ELECTRON (SCATTERER) PROPERTIES ##
-    n         = -2.5;                              # e- gamma power law index
+    n         = -3;                                # e- gamma power law index
     gam       = pwrlaw_variate(N_p, n, 10., 100.); # e- Lorentz factor
     beta      = np.sqrt(1 - 1/gam**2);             # electron velocity (units of c)
     
     ## INCOMING PHOTON PROPERTIES ##
-    kT        = C.K_B * T_background;                # sauce temperature
     L_SN      = L_background;                      # erg/s lum of (blackbody) photon source
     L_p       = L_SN/N_p;                          # erg/s lum of each photon packet
     tau       = 0.01;                              # optical depth; single-scattering approximation
-    scat_frac = 1-np.exp(-tau);                    # scattering fraction (for L_out)
+    scat_frac = 1 - np.exp(-tau);                  # scattering fraction (for L_out)
     mu_in     = 1 - 2*np.random.rand(N_p);         # incoming photon directions
     mu_out    = 1 - 2*np.random.rand(N_p);         # outgoing photon directions
-    hnu_min   = 0.1*C.EV2ERG;                        # lower energy bound for BB variate
-    hnu_max   = 15 *C.EV2ERG;                        # upper energy bound for BB variate
-    hnu_in    = thermal_variate( N_p, hnu_min, hnu_max, kT ); # BB dist
-    hnu_in   /= C.EV2ERG;                            # convert from erg to eV
+
+    if type(back_info)==float:
+        hnu_min   = 0.1/C.ERG2EV;                      # lower energy bound for BB variate, in erg
+        hnu_max   = 15 /C.ERG2EV;                      # upper energy bound for BB variate, in erg
+        kT        = C.K_B * back_info;              # sauce temperature
+        hnu_in    = thermal_variate( N_p, hnu_min, hnu_max, kT ); # BB dist, in erg
+        hnu_in   *= C.ERG2EV;                          # convert from erg to eV
+    elif type(back_info)==str:
+        hnu_in = arbitrary_variate(N_p, back_info)
+        hnu_in *= C.ERG2EV
 
     ### PRODUCE SPECTRUM ##
 
-    # calculate outgoing photon energies:
+    # calculate outgoing photon energies for each packet:
     hnu_out = scatter( gam, beta, hnu_in, mu_in, mu_out ); # eV
 
-    # convert to luminosities:
+    # convert to packet luminosities:
     L_out = L_p * (hnu_out/hnu_in) * scat_frac; # erg/s
 
 
@@ -100,7 +145,7 @@ def compton(L_background, T_background, show=False):
     # bin photons by energy (demand 5000 packets per bin)
     hnu_bins = np.logspace( np.log10(min(hnu_out)), np.log10(max(hnu_out)), N_p/5000); 
     binsize = np.diff(hnu_bins);
-    # figure out which bin each hnu_out goes in:
+    # figure out which bin each out-packet goes in:
     i_assign = np.digitize( hnu_out, hnu_bins ); 
 
     # bin L_out to make L_nu 
@@ -110,33 +155,34 @@ def compton(L_background, T_background, show=False):
         L_nu[i-1] = L_bin;
     L_nu /= binsize ;
 
-
     ### PLOT SPECTRUM ##
-    #if show:
-    #    fm, lblsz = 'serif', 24.;
-    #
-    #    fig = plt.figure(figsize=(5,4));
-    #    ax = fig.add_axes([0.2,0.2,0.75,0.75]);
-    #
-    #    ax.set_xlabel(r"$\epsilon_{\mathrm{out}} \; \mathrm{(eV)}$", 
-    #                  family=fm, size=lblsz                          );
-    #    ax.set_ylabel(r"$\mathcal{L}_\nu \; \mathrm{(erg/s)}$", 
-    #                  family=fm, size=lblsz                          );
-    #
-    #    ax.loglog(hnu_bins[1:],L_nu,'.k'); # plot spectrum
-    #
-    #    # Make things pretty:
-    #    if type(gam) in [int,float]: xlims = [2.e-4,5.e3];
-    #    else                       : xlims = [2.e-4,8.e5];
-    #    ylims = [3.e37, 6.e41];
-    #    ax.set_xlim(xlims);
-    #    ax.set_ylim(ylims);
-    #
-    #    plt.show();
+    if show:
+        fm, lblsz = 'serif', 24.;
+    
+        fig = plt.figure(figsize=(5,4));
+        ax = fig.add_axes([0.2,0.2,0.75,0.75]);
+    
+        ax.set_xlabel(r"$\epsilon_{\mathrm{out}} \; \mathrm{(eV)}$", 
+                      family=fm, size=lblsz                          );
+        ax.set_ylabel(r"$\mathcal{L}_\nu \; \mathrm{(erg/s)}$", 
+                      family=fm, size=lblsz                          );
+    
+        ax.loglog(hnu_bins[1:],L_nu,'.k'); # plot spectrum
+    
+        # Make things pretty:
+        if type(gam) in [int,float]: xlims = [2.e-4,5.e3];
+        else                       : xlims = [2.e-4,8.e5];
+        ylims = [3.e37, 6.e41];
+        ax.set_xlim(xlims);
+        ax.set_ylim(ylims);
+    
+        plt.show();
    
-    return L_nu, hnu_bins;
+    return L_nu, hnu_bins/C.ERG2EV;
 
 
 if __name__=='__main__': 
-    compton(1.e49,1.e4,True);
+    spec_name = '/Users/ceharris1/PTF/synapps_spectra/ss_10px_20100114_Keck1_v1.ascii'
+    #compton(1.e49,1.e4,True);
+    compton(1.e49,spec_name,True);
     #do_this_now();
