@@ -581,10 +581,11 @@ class BremCalculator(object):
         assert len(a_ray.n_I) > 0
 
         exp_pow = np.outer(C.H*a_nu, 1.0/(C.K_B*a_ray.T_gas))
+
         # not in Rayleigh-Jeans limit:
         if np.any(exp_pow > 0.1):
             i_not_RJ = np.where(exp_pow>0.1)[0]
-            #print('free-free absorption not Rayleigh-Jeans limit between cells {} and {}'.format(min(i_not_RJ),max(i_not_RJ)))
+            print('free-free absorption not Rayleigh-Jeans limit between cells {} and {}'.format(min(i_not_RJ),max(i_not_RJ)))
             const = 3.7e8 *a_Z**2 
             csm_vect = a_ray.T_gas**-0.5 * a_ray.n_e*a_f_therm * a_ray.n_I 
             exp_pow = np.outer(-C.H*a_nu, 1.0/(C.K_B*a_ray.T_gas))
