@@ -565,8 +565,8 @@ class BremCalculator(object):
         # allowing for relativistic correction
         # assuming Maxwellian distribution for electrons
         # Rybicki & Lightman Eqn 5.25
-        assert a_ray.n_e != None
-        assert a_ray.n_I != None
+        assert len(a_ray.n_e) == len(a_ray) 
+        assert len(a_ray.n_I) == len(a_ray) 
         return a_gaunt*1.4e-27/(4*C.PI) * a_Z**2 * a_ray.n_e*a_f_therm * a_ray.n_I * (a_ray.T_gas)**0.5 * (1 + 4.4e-10*a_ray.T_gas)
 
 

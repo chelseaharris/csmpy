@@ -1,0 +1,125 @@
+#
+#
+#  Copyright (c) 2014, Peter A.M. van Hoof.
+#
+#  These data are provided 'as-is', without any express or implied warranty. In
+#  no event will the author be held liable for any damages arising from the use
+#  of these data.
+#
+#  Permission is granted to anyone to use these data for any purpose, including
+#  commercial applications, and to alter them and redistribute them freely,
+#  subject to the following restrictions:
+#
+#  1. The origin of these data must not be misrepresented; you must not claim
+#     that you created the original data. If you use these data in a product,
+#     an acknowledgment in the product documentation would be appreciated but
+#     is not required.
+#  2. Altered data versions must be plainly marked as such, and must not be
+#     misrepresented as being the original data.
+#  3. This notice may not be removed or altered from any further distribution.
+#
+#  Peter A.M. van Hoof
+#  Royal Observatory of Belgium
+#  Ringlaan 3
+#  B-1180 Brussels
+#  Belgium
+#  p.vanhoof@oma.be
+#
+#
+#
+# Chelsea E. Harris: Making some of these lines a part of the header; this information
+# will be hard-coded in to my radiation calculation. 
+# Note that gamma^2 = gam2 = Z^2 Ryd/kT_e
+#
+# 20140424 # magic number
+#       81 # number of grid points in gam2 direction
+#       -6 # start value for log(gam2)
+#     2e-1 # stepsize in dex for log(gam2)
+#
+# This table gives the thermally averaged, frequency-integrated Gaunt factors.
+#
+# Column 1: log(gam^2)
+# Column 2: <g_ff(gam^2)>
+# Column 3: the absolute uncertainty in <g_ff(gam^2)>
+#
+    -6  1.10382188e+00  1.2029e-05
+  -5.8  1.10412945e+00  1.2032e-05
+  -5.6  1.10451684e+00  1.2035e-05
+  -5.4  1.10500484e+00  1.2039e-05
+  -5.2  1.10561954e+00  1.2045e-05
+    -5  1.10639402e+00  1.2052e-05
+  -4.8  1.10736987e+00  1.2061e-05
+  -4.6  1.10859969e+00  1.2072e-05
+  -4.4  1.11014983e+00  1.2087e-05
+  -4.2  1.11210364e+00  1.2105e-05
+    -4  1.11456632e+00  1.2128e-05
+  -3.8  1.11767024e+00  1.2156e-05
+  -3.6  1.12158203e+00  1.2193e-05
+  -3.4  1.12650414e+00  1.2239e-05
+  -3.2  1.13269129e+00  1.2296e-05
+    -3  1.14045007e+00  1.2369e-05
+  -2.8  1.15014445e+00  1.2460e-05
+  -2.6  1.16219139e+00  1.2575e-05
+  -2.4  1.17704319e+00  1.2454e-05
+  -2.2  1.19514899e+00  1.2363e-05
+    -2  1.21688293e+00  1.2538e-05
+  -1.8  1.24243246e+00  1.2751e-05
+  -1.6  1.27164242e+00  1.3009e-05
+  -1.4  1.30383130e+00  1.3315e-05
+  -1.2  1.33762051e+00  1.3670e-05
+    -1  1.37085121e+00  1.4779e-05
+ -8e-1  1.40070508e+00  1.3377e-05
+ -6e-1  1.42404190e+00  1.3527e-05
+ -4e-1  1.43805205e+00  1.3243e-05
+ -2e-1  1.44094899e+00  1.5622e-05
+     0  1.43252971e+00  1.3239e-05
+  2e-1  1.41420817e+00  1.2988e-05
+  4e-1  1.38857445e+00  1.2695e-05
+  6e-1  1.35858741e+00  1.2374e-05
+  8e-1  1.32685041e+00  1.3223e-05
+     1  1.29524415e+00  1.2754e-05
+   1.2  1.26491791e+00  1.4290e-05
+   1.4  1.23649389e+00  1.3477e-05
+   1.6  1.21024967e+00  1.3203e-05
+   1.8  1.18627587e+00  1.2896e-05
+     2  1.16455261e+00  1.2343e-05
+   2.2  1.14498744e+00  1.2706e-05
+   2.4  1.12746050e+00  1.1608e-05
+   2.6  1.11182464e+00  1.1502e-05
+   2.8  1.09792548e+00  1.1912e-05
+     3  1.08561210e+00  1.1542e-05
+   3.2  1.07473078e+00  1.2751e-05
+   3.4  1.06514855e+00  1.1981e-05
+   3.6  1.05672101e+00  1.0802e-05
+   3.8  1.04932265e+00  1.1697e-05
+     4  1.04284897e+00  1.1272e-05
+   4.2  1.03718533e+00  1.0811e-05
+   4.4  1.03223773e+00  1.2266e-05
+   4.6  1.02792864e+00  9.9615e-06
+   4.8  1.02417416e+00  1.1565e-05
+     5  1.02090988e+00  1.0829e-05
+   5.2  1.01807328e+00  1.0985e-05
+   5.4  1.01561577e+00  1.0693e-05
+   5.6  1.01347939e+00  1.1515e-05
+   5.8  1.01162953e+00  1.1946e-05
+     6  1.01003329e+00  1.0768e-05
+   6.2  1.00864946e+00  1.0676e-05
+   6.4  1.00745346e+00  9.5657e-06
+   6.6  1.00641843e+00  1.0983e-05
+   6.8  1.00552501e+00  1.0506e-05
+     7  1.00475326e+00  1.0292e-05
+   7.2  1.00408880e+00  1.0864e-05
+   7.4  1.00351770e+00  1.0366e-05
+   7.6  1.00302253e+00  1.0093e-05
+   7.8  1.00259724e+00  1.0722e-05
+     8  1.00223016e+00  1.0205e-05
+   8.2  1.00191326e+00  1.0098e-05
+   8.4  1.00164123e+00  1.0720e-05
+   8.6  1.00141131e+00  1.0259e-05
+   8.8  1.00120941e+00  9.8991e-06
+     9  1.00103702e+00  1.0573e-05
+   9.2  1.00088762e+00  1.0033e-05
+   9.4  1.00075927e+00  9.8390e-06
+   9.6  1.00064187e+00  1.0707e-05
+   9.8  1.00054847e+00  1.0399e-05
+  1e+1  1.00046745e+00  1.0031e-05
