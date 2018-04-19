@@ -29,6 +29,7 @@ HR2SEC    = 3600.
 MIN2SEC   = 60.
 # ... energy
 ERG2GEV   = 624.150934326018 # ( (1*u.erg).to(u.GeV) ).value;
+ERG2KEV   = 624150934.326018 # ( (1*u.erg).to(u.keV )).value;
 ERG2EV    = 624150934326.018 # ( (1*u.erg).to(u.eV ) ).value;
 EV2ERG    = 1./ERG2EV
 HZ2ERG    = 6.62606957e-27   # ( (C.h*(1*u.Hz)).to(u.erg) ).value;

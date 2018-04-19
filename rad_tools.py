@@ -515,6 +515,11 @@ class BremCalculator(object):
         # The interpolaton function
         self.gaunt_func = sint.RectBivariateSpline(x, y, gff)
 
+        # Do the same thing for the frequency-integrated values
+        gam2, gff_int = np.loadtxt('gauntff_freqint.dat', usecols=[0,1], unpack=True)
+
+        self.intgaunt_func = sint.interp1d(gam2, gff_int)
+
 
     def get_gaunt(self, a_ray, a_Z, a_nu):
         # Using the notation of van Hoof et al. : 
@@ -530,6 +535,13 @@ class BremCalculator(object):
         gff = self.gaunt_func.ev( log_u.flatten(), log_gam2.flatten() )
 
         return gff.reshape(log_u.shape)
+
+    def get_intgaunt(self, a_ray, a_Z):
+        log_gam2 = np.log10((C.RYD_EN*a_Z**2)/(C.K_B*a_ray.T_gas))
+        
+        gff = self.intgaunt_func( log_gam2 )
+
+        return gff
 
 
     def calc_j_nu_therm(self, a_ray, a_Z, a_nu, a_f_therm=1.0):
@@ -556,7 +568,7 @@ class BremCalculator(object):
         return 4*C.PI*np.sum( j_nu_therm*vols, axis=1 )
 
 
-    def calc_j_tot(self, a_ray, a_Z, a_gaunt=1.2, a_f_therm=1.0):
+    def calc_j_tot(self, a_ray, a_Z, a_f_therm=1.0):
         """
         Calculates the total free-free emissivity from a Maxwellian electron distribution
         Units of returned value: erg s^-1 cm^-3 str^-1
@@ -567,7 +579,9 @@ class BremCalculator(object):
         # Rybicki & Lightman Eqn 5.25
         assert len(a_ray.n_e) == len(a_ray) 
         assert len(a_ray.n_I) == len(a_ray) 
-        return a_gaunt*1.4e-27/(4*C.PI) * a_Z**2 * a_ray.n_e*a_f_therm * a_ray.n_I * (a_ray.T_gas)**0.5 * (1 + 4.4e-10*a_ray.T_gas)
+
+        gff = self.get_intgaunt(a_ray, a_Z)
+        return gff*1.4e-27/(4*C.PI) * a_Z**2 * a_ray.n_e*a_f_therm * a_ray.n_I * (a_ray.T_gas)**0.5 * (1 + 4.4e-10*a_ray.T_gas)
 
 
     def calc_al_BB(self, a_ray, a_Z, a_nu, a_f_therm=1.0):
@@ -699,6 +713,56 @@ class HalCalculator(object):
     def calc_L_esc(self, a_ray, a_L, a_nu, a_X):
         return 0
 
+
+def sol_xray_xsec(nu_Hz):
+    """
+    This returns the Morrison & McCammon cross section 
+    for the 0.03-10 keV range assuming solar abundances.
+    The equation is
+    sig = 1e-24 * (c_0 * c_1*E + c_2*E**2)*E**-3
+    where E is the photon energy in keV
+
+    INPUT
+    nu_Hz   : [float, float[]] photon frequencies in Hz
+    OUTPUT
+    sig     : [same as nu_Hz] cross-section at each frequency, in cm^2
+    """
+
+    # Change from frequency to keV energy
+    ens = nu_Hz*C.H*C.ERG2KEV
+
+    e_bins = [0.030, 0.100, 0.284, 0.400, 0.532, 
+              0.707, 0.867, 1.303, 1.840, 2.471, 
+              3.210, 4.038, 7.111, 8.331, 10.00]
+
+    # Determine which part of the fit each frequency is at
+    # note this doesn't really catch things that are "out of bounds"
+    idx = np.digitize(ens, e_bins)
+
+    # these are the coefficients for the quadratic approximation
+    cs = np.array([[17.3 ,    608.1,   -2150.],
+                   [34.6 ,    267.9,   -476.1],
+                   [78.1 ,    18.8 ,    4.3  ],
+                   [71.4 ,    66.8 ,   -51.4 ],
+                   [95.5 ,    145.8,   -61.1 ],
+                   [308.9,   -380.6,    294.0],
+                   [120.6,    169.3,   -47.7 ],
+                   [141.3,    146.8,   -31.5 ],
+                   [202.7,    104.7,   -17.0 ],
+                   [342.7,    18.7 ,    0.0  ],
+                   [352.2,    18.7 ,    0.0  ],
+                   [433.9,   -2.4  ,    0.75 ],
+                   [629.0,    30.9 ,    0.0  ],
+                   [701.2,    25.2 ,    0.0  ]])
+
+    # now get the cross section
+    sig = 1e-24 * (cs[:,0][idx] * cs[:,1][idx]*ens + cs[:,2]*ens**2)*ens**-3    
+
+    # energies out of the range shouldn't get a cross-section!
+    out_of_bounds = (ens < e_bins[0]) | (ens > e_bins[-1])
+    sig[out_of_bounds] = 0.0
+
+    return sig
 
 
 def approx_ion_radius(n_base, R_base, Qdot_optical, A_H=1.0, s=0):
