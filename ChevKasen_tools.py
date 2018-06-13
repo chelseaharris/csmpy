@@ -259,14 +259,14 @@ def calc_shell_R_c( t, s, n, f_R, M_csm, M_ej=C.M_CH, delta=1, E_ej=FOE):
     return  t * ( A * g_tothe_n * (4*np.pi/(3-s)) * ((1+f_R)**(3-s)-1) * (1/M_csm) )**(1./(n-3));
 
 
-def calc_t_imp( R_c0, s, n, q, M_ej=C.M_CH, delta=1 ):
+def calc_t_imp( R_c0, s, n, q, M_ej=C.M_CH, delta=1, E_ej=FOE ):
     """                                                                                                                                                                                                   
     Calculates the self-similar impact time given contact discontinuity                                                                                                                                   
     parameters and other parameters as in calc_R_c()                                                                                                                                                      
     """
 
     A = get_A(s, n)
-    g_tothe_n = calc_g_tothe_n(s, n, M_ej, delta)
+    g_tothe_n = calc_g_tothe_n(s, n, M_ej, delta, E_ej)
 
     return (A*g_tothe_n/q)**(-1./(n-3)) * R_c0**((n-s)/(n-3.))
 
@@ -276,8 +276,8 @@ def get_A(s, n):
     Returns C82 value of A
     """
     # From C82 (level 0 key is 's', level 1 key is 'n')
-    A_dict = { 0: {7: 1.2  , 10:0.33 , 12:0.19 },
-               2: {7: 0.270, 10:0.067, 12:0.038}
+    A_dict = { 0: {6: 2.4 , 7: 1.2  , 8: 0.71,  9: 0.47 , 10:0.33 , 12:0.19 , 14: 0.12 },
+               2: {6: 0.62, 7: 0.270, 8: 0.15,  9: 0.096, 10:0.067, 12:0.038, 14: 0.025}
              }
     if s not in A_dict.keys():
         print("No recorded A values for s={:d}".format(s));

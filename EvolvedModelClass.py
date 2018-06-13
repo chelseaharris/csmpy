@@ -73,7 +73,7 @@ class EvolvedModel(object):
     # Returns the array of times in a different unit 
     # (like set_time_unit() but doesn't change the object)
         assert unit in TimeUnits.keys();
-        if unit==self.tunit: return self.tunit;
+        if unit==self.tunit: return self.times;
         else               : return self.times*TimeUnits[self.tunit] / TimeUnits[unit];
     
 

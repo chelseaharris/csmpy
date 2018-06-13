@@ -123,9 +123,9 @@ class Ray(object):
         assert len(glob.glob(ray_fn))==1;
   
         try:        
-            this_ray = Ray( np.loadtxt(ray_fn, usecols=[0,1,2,3,4,5,6,10], unpack=True), ray_time );
+            this_ray = Ray( np.loadtxt(ray_fn, usecols=[0,1,2,3,4,5,6,10], unpack=True), a_time=ray_time );
         except IndexError:
-            this_ray = Ray( np.loadtxt(ray_fn, usecols=[0,1,2,3,4,5,6], unpack=True), ray_time );
+            this_ray = Ray( np.loadtxt(ray_fn, usecols=[0,1,2,3,4,5,6], unpack=True), a_time=ray_time );
 
         return this_ray
 
@@ -141,7 +141,8 @@ class Ray(object):
 
     def __len__(self):
         return len(self.r1)
- 
+
+
     def size(self):
     # Number of cells in the ray
         return len(self.r1);
@@ -188,7 +189,8 @@ class Ray(object):
             if verbose: print("Ray.mass_btwn() called on single cell");
             return self.cell_mass(i1)
         else:
-            return sum( [ self.cell_mass(i) for i in range(i1,i2) ] );
+            return sum(4*np.pi/3 * self.rho[i1:i2+1] * ((self.r2[i1:i2+1])**3 - (self.r1[i1:i2+1])**3))
+
 
 
     def calc_N_e(self, i=[]):
