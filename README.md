@@ -17,7 +17,7 @@ These tools require Python 3, numpy, and scipy.
 * `ChevKasen_tools.py` combines formulae from Chevalier (1982) and Kasen (2010) that 
   describe supernova ejecta and CSM density profiles, and the interaction between the two. 
 * `EvolvedModelClass.py` contains the `EvolvedModel` class. Typically this is 
-  used with \s
+  used with /s
   `from EvolvedModelClass import EvolvedModel as EvMod`
 * `RayClass.py` contains the `Ray` and `Cell` classes as well as function for 
   degrading the resolution of a ray (`merge_cells()`). 
