@@ -174,5 +174,5 @@ def find_fronts( data, car_size=13, start=-1, end=-1, N_find=3, car2_size=-1 ):
     # give the ideces back (add 'start' so that it is indeces with respect to the original data);
 
 
-    return breaks;
+    return breaks.astype(int);
 
