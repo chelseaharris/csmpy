@@ -50,5 +50,3 @@ An example of this workflow is provided in `example/basic_use`.
 5. Use your calculators to perform necessary radiation calculations on the ray or 
    piece of the ray. 
 6. Save calculations to file.
-  
-
