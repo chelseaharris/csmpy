@@ -11,6 +11,8 @@ import matplotlib.cm as pcm
 #import multiprocessing as mproc
 #N_proc = 2
 
+data_path = '../data/'
+
 def get_sol_abun_mfrac():
     """
     Returns an array of solar abundances of the elements by mass fraction
@@ -500,7 +502,7 @@ class BremCalculator(object):
         print('Cite van Hoof et al. (2014) if you publish with this!')
 
         # Load the table of gaunt factors
-        gff = np.loadtxt('gauntff.dat')
+        gff = np.loadtxt(data_path+'gauntff.dat')
         # Make u and gamma^2 grids for the interpolation
 
         # number of u and gamma^2 values in the table I have
@@ -516,7 +518,7 @@ class BremCalculator(object):
         self.gaunt_func = sint.RectBivariateSpline(x, y, gff)
 
         # Do the same thing for the frequency-integrated values
-        gam2, gff_int = np.loadtxt('gauntff_freqint.dat', usecols=[0,1], unpack=True)
+        gam2, gff_int = np.loadtxt(data_path+'gauntff_freqint.dat', usecols=[0,1], unpack=True)
 
         self.intgaunt_func = sint.interp1d(gam2, gff_int)
 
