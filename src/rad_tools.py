@@ -850,11 +850,14 @@ def calc_F_nu(a_ray, a_nu, a_S_nu, a_alpha, N_mu=10):
     """
     Do a bit of 'ray tracing' (not to be confused with the radial gas profile being called a 'ray')
     to get the flux from a 1d model at a certain time
+    INPUTS
     a_ray     : Ray     : contains the gas properties; see RayClass
     a_nu      : float[] : array of frequencies to calculate for, in Hz
     a_S_nu    : float[] : the source function (units erg s^-1 cm^-2 str^-1 Hz^-1) for each frequency and cell (shape (a_nu.size, a_ray.size()))
     a_alpha   : float[] : extinction coefficient (units cm^-1) for each frequency and cell (shape (a_nu.size, a_ray.size()))
     N_mu      : int     : number of angles to do (mu = cos(theta)) 
+    OUTPUTS
+    F_nu      : float[] : flux at each frequency at the outer boundary of the ray
     """
     assert a_S_nu.shape  == (a_nu.size, a_ray.size())
     assert a_alpha.shape == (a_nu.size, a_ray.size())
