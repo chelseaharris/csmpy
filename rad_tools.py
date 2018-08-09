@@ -232,9 +232,9 @@ class SynchrotronCalculator(object):
     
         assumes optically thin, and that only power-law electrons contribute
     
-        for frequencies higher than nu_syn,
+        for frequencies higher than nu_crit,
     
-            j_nu = (sigam_Th * c / (6*pi)) * C * u_B * gamma**(1-p) / nu_syn
+            j_nu = (sigam_Th * c / (6*pi)) * C * u_B * gamma**(1-p) / nu_crit
     
             if p = 3,
     
@@ -266,12 +266,13 @@ class SynchrotronCalculator(object):
         # only valid for p=3:
         j_nu =  numer_const *  np.outer( 1/a_nu_Hz, csm_vect ) 
 
-        nu_syn = self.calc_nu_syn( a_ray )
+        nu_c = self.calc_nu_crit( a_ray )
+
         
-        below_crit = np.outer(a_nu_Hz, 1/nu_syn) < 1
+        below_crit = np.outer(a_nu_Hz, 1/nu_c) < 1
         if np.any(below_crit):
             # p=3 only:
-            jnu_if_below = np.outer( a_nu_Hz**(1./3) , numer_const*csm_vect*nu_syn**(-4./3) )
+            jnu_if_below = np.outer( a_nu_Hz**(1./3) , numer_const*csm_vect*nu_c**(-4./3) )
             j_nu[below_crit] = jnu_if_below[below_crit]
 
         return j_nu
@@ -318,12 +319,12 @@ class SynchrotronCalculator(object):
 
         S_nu =  numer_const *  np.outer( a_nu_Hz**2.5, csm_vect ) 
 
-        nu_syn = self.calc_nu_syn( a_ray )
+        nu_c = self.calc_nu_crit( a_ray )
         
-        below_crit = np.outer(a_nu_Hz, 1/nu_syn) < 1
+        below_crit = np.outer(a_nu_Hz, 1/nu_c) < 1
         if np.any(below_crit):
             # p=3 only:
-            jnu_if_below = numer_const * np.outer( a_nu_Hz**(23./6) , csm_vect*nu_syn**(-4./3) )
+            jnu_if_below = numer_const * np.outer( a_nu_Hz**(23./6) , csm_vect*nu_c**(-4./3) )
             j_nu[below_crit] = jnu_if_below[below_crit]
 
         return S_nu
