@@ -227,8 +227,8 @@ def calc_v_s( t, s, n, q, M_ej=C.M_CH, delta=1, E_ej=FOE):
     """
     calculate the foward and reverse shock speeds
     """
-    f_fwd = get_R1_factor(s, n)
-    f_rev = get_R2_facotr(s, n)
+    f_fwd = get_R1factor(s, n)
+    f_rev = get_R2factor(s, n)
 
     v_c = (n-3.)/(n-s) * calc_R_c(t, s, n, q, M_ej, delta, E_ej) / t
 
