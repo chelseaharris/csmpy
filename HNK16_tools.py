@@ -674,12 +674,22 @@ class Shell(object):
         # Optically thin light-curve
         lc = self.make_thin_LC(L_p, at_times=times, ntimes=ntimes, include_rev=include_rev)
 
+        # Extrapolation of rise may give you bogus negative values early-early on
+        numerical_mess = (lc.lum < 0.)
+        lc.lum[numerical_mess] = 0.
+
         # Extinction
         if include_SSA:
             tau = self.calc_tau_SSA(lc.t, nu_GHz)
             abs_fac = (1-np.exp(-4*tau))/(4*tau)
+            abs_lum = lc.lum*abs_fac
 
-            lc.lum *= abs_fac
+            # If optical depth is very low then you can get a division by ~zero
+            # issue that makes the initial absorbed LC very bright.
+            # The absorbed luminosity should never be higher than the unabsorbed
+            numerical_mess = (abs_lum > lc.lum)
+            lc.lum[~numerical_mess] = abs_lum[~numerical_mess]
+
 
         return lc
         
