@@ -1,8 +1,12 @@
 ###
 # Functions for generating light-curves for the HNK16 fiducial family
+# Author: C.E. Harris
+# Date: Aug. 10, 2020
 ###
 
 import numpy             as np
+
+# These are all in csmpy:
 from EvolvedModelClass import EvolvedModel as EvMod
 import Const as C
 import ChevKasen_tools as ckt
@@ -253,19 +257,22 @@ class Shell(object):
                 self._calc_f_R()
             if not R_out:
                 self._calc_Rout()
+            if not rho:
+                self._calc_rho()
             if not t_imp:
                 self._calc_timp()
             if not t_cross:
                 self._calc_tx()
-            if not rho:
-                self._calc_rho()
             if not mass:
                 self._calc_mass()
 
         # Check model hydrodynamic assumptions
-        is_good = self._check_in_outer_ejecta()
-        is_good = is_good & self._check_likely_adiabatic()
-        self.valid = is_good
+        try:
+            is_good = self._check_in_outer_ejecta()
+            is_good = is_good & self._check_likely_adiabatic()
+            self.valid = is_good
+        except:
+            self.valid = False
         
 
     def _apply_thickness_relation(self):
@@ -337,6 +344,18 @@ class Shell(object):
                 self._have_props['rho'] = 1
         return 0
 
+    def _apply_contact_relation_with_mass(self):
+        """
+        invoke ChevKasen_tools function to get R_in 
+        """
+        if self._have_props['ti'] and self._have_props['M'] and self._have_props['f']:
+            self.R_in = ckt.calc_shell_R_c(self.t_imp, 0, 10, self.f_R, self.mass,
+                                           M_ej=1.38*C.M_SUN)
+            self._have_props['Ri'] = 1
+            return 0
+        else:
+            return -1        
+
     
     def _apply_mass_relation(self):
         """
@@ -371,7 +390,17 @@ class Shell(object):
         if res1 == -1:
             res2 = self._apply_shock_cross_relation()
             if res2 == -1:
-                print('Not enough information to determine f_R')
+                if self._have_props['M'] and self._have_props['rho'] and self._have_props['ti']:
+                    # set R_in
+                    res3a = self._apply_contact_relation()
+                    # set R_out
+                    res3b = self._apply_mass_relation()
+                    # set f_R
+                    res3c = self._apply_thickness_relation()
+                    if -1 in (res3a,res3b,res3c):
+                        print('Not enough information to determine f_R')
+                    else:
+                        return res3c
             return res2
         else:
             return res1
@@ -393,7 +422,9 @@ class Shell(object):
             if res2==-1:
                 res3 = self._apply_mass_relation()
                 if res3==-1:
-                    print('Not enough information to determine R_in')
+                    res4 = self._apply_contact_relation_with_mass()
+                    if res4==-1:
+                        print('Not enough information to determine R_in')
                 return res3
             else:
                 return res2
@@ -476,7 +507,7 @@ class Shell(object):
         R_term = (self.R_in/1e16)**(3./7)
         f_term = ( 1 - (1+self.f_R)**-1.28 )
 
-        return 3.2e28 * const_term*nu_term*rho_term*R_term*f_term
+        return const_term*nu_term*rho_term*R_term*f_term
     
     # rise
     def rise_to_peak(self, x, L_p ):
@@ -492,7 +523,7 @@ class Shell(object):
         else:
             L_inf = 1.705*L_p
 
-            L = L_inf * ( 1 - 0.985/x )
+        L = L_inf * ( 1 - 0.985/x )
 
         return L
 
@@ -528,31 +559,7 @@ class Shell(object):
             falling_lum = np.array([L_qt, L_qt*(falling_x[1]/falling_x[0])**-11.5])
         falling_x = np.array(falling_x) 
 
-
-        if len(at_times)>0:
-            x_targ = at_times/self.t_imp
-            x_targ.sort()
-
-            # calculate rise at target times directly from function
-            rise_x_targ = x_targ[ x_targ <= x_p ]
-            rise_lum = self.rise_to_peak(rise_x_targ, L_p)
-
-            # interpolate fall
-            # for decline interpolation, need to fill in fall after peak
-            falling_x = np.concatenate(([x_p], falling_x))
-            falling_lum = np.concatenate(([L_p], falling_lum))
-
-            fall_x_targ = x_targ[ x_targ > x_p ]
-            fall_lum = np.interp( np.log10(fall_x_targ), np.log10(falling_x), np.log10(falling_lum),
-                                  left=np.nan, right=np.nan )
-            fall_lum = 10**fall_lum
-            # fill in the latest time stuff with adiabatic losses L ~ t^-9
-            super_late = fall_x_targ > self.x_dec_pt3()
-            fall_lum[super_late] = falling_lum[-1] * (fall_x_targ[super_late]/falling_x[-1])**-9
-            
-            all_x = np.concatenate((rise_x_targ, fall_x_targ))
-            lum = np.concatenate((rise_lum, fall_lum))
-        else:
+        if at_times==[]:
             n_rise = ntimes - falling_x.size
             x_min = 1+1e-3
             rise_x = np.logspace(np.log10(x_min), np.log10(x_p), n_rise)
@@ -563,22 +570,62 @@ class Shell(object):
             all_x = np.concatenate((rise_x, falling_x))
             lum = np.concatenate((rise_lum, falling_lum))
 
-        t = self.t_imp*all_x
-            
-        return ModLC(t, lum)
-
-
-    def get_tau_norm(self):
-        return 3.4 * (self.rho/1e-18)**1.5 *(self.t_imp/(100*C.DAY2SEC))**-1.25
-
-    def calc_tau_inshell(self, times):
-        x = times/self.t_imp
-        return self.get_tau_norm() * x**-1.34 * (1-x**-1.66)
-        
-    def tau_at_tx(self):
-        return self.calc_tau_inshell(self.t_x)        
+            lc = ModLC( self.t_imp*all_x, lum )
+        else:
+            x_targ = at_times/self.t_imp
+            try:
+                N_times = len(at_times)
+                x_targ.sort()
     
-    def calc_tau_SSA(self, times):
+                # calculate rise at target times directly from function
+                rise_x_targ = x_targ[ x_targ <= x_p ]
+                rise_lum = self.rise_to_peak(rise_x_targ, L_p)
+    
+                # interpolate fall
+                # for decline interpolation, need to fill in fall after peak
+                falling_x = np.concatenate(([x_p], falling_x))
+                falling_lum = np.concatenate(([L_p], falling_lum))
+    
+                fall_x_targ = x_targ[ x_targ > x_p ]
+                fall_lum = np.interp( np.log10(fall_x_targ), np.log10(falling_x), np.log10(falling_lum),
+                                      left=np.nan, right=np.nan )
+                fall_lum = 10**fall_lum
+                # fill in the latest time stuff with adiabatic losses L ~ t^-9
+                super_late = fall_x_targ > self.x_dec_pt3()
+                fall_lum[super_late] = falling_lum[-1] * (fall_x_targ[super_late]/falling_x[-1])**-9
+                
+                all_x = np.concatenate((rise_x_targ, fall_x_targ))
+                lum = np.concatenate((rise_lum, fall_lum))
+                
+                lc = ModLC( self.t_imp*all_x, lum )
+            except TypeError:
+                x_targ = at_times/self.t_imp
+                if x_targ <= x_p:
+                    lum = self.rise_to_peak(x_targ, L_p)
+                elif x_targ <= self.x_dec_pt3():
+                    lum = np.interp( np.log10(x_targ), np.log10(falling_x), np.log10(falling_lum),
+                                     left=np.nan, right=np.nan)
+                    lum = 10**lum
+                else:
+                    lum = falling_lum[-1] * (x_targ/falling_x[-1])**-9
+
+                lc = ModLC( np.array([self.t_imp*x_targ]), np.array([lum]) )
+            
+        return lc
+
+
+    def get_tau_norm(self, nu_GHz=4.9):
+        # This is from a fit to model calculations of tau at 4.9 GHz
+        return 3.4 * (self.rho/1e-18)**1.5 *(self.t_imp/(100*C.DAY2SEC))**-1.25 * (nu_GHz/4.9)**-3.5
+
+    def calc_tau_inshell(self, times, nu_GHz=4.9):
+        x = times/self.t_imp
+        return self.get_tau_norm(nu_GHz) * x**-1.34 * (1-x**-1.66)
+        
+    def tau_at_tx(self, nu_GHz=4.9):
+        return self.calc_tau_inshell(self.t_x, nu_GHz)        
+    
+    def calc_tau_SSA(self, times, nu_GHz=1.):
         if not self.valid: return np.array([])
 
         x = times/self.t_imp
@@ -597,10 +644,10 @@ class Shell(object):
 
         # this is the function to describe tau evolution while
         # the shock is in the shell
-        tau = self.calc_tau_inshell(times)
-
+        tau = self.calc_tau_inshell(times, nu_GHz)
+        tau_cross = self.tau_at_tx(nu_GHz) # not guaranteed that times containts x_p
+        
         # early part of the decline - interpolate between characteristic points as power-law
-        tau_cross = self.tau_at_tx() # not guaranteed that times containts x_p
         dec_tau  = tau_cross*np.array([  1,0.5,1e-1,1e-2,1e-3]) # tau along initial decline
         dec_x = np.array([x_p, x0,  x1,  x2,  x3]) # characteristic times
         tau_interp = np.interp(np.log10(x[near_cross]), np.log10(dec_x), np.log10(dec_tau))
@@ -620,18 +667,19 @@ class Shell(object):
         return tau
 
 
-    def make_LC(self, times, L_p, include_rev=False, include_SSA=True):
+    def make_LC(self, L_p, times=[], ntimes=10, include_rev=False, include_SSA=True, nu_GHz=4.9):
         if include_SSA & include_rev:
             print('Treatment of SSA does not include reverse shock absorption.')
 
         # Optically thin light-curve
-        lc = self.make_thin_LC(L_p, times)
+        lc = self.make_thin_LC(L_p, at_times=times, ntimes=ntimes, include_rev=include_rev)
 
         # Extinction
-        tau = self.calc_tau_SSA(lc.t)
-        abs_fac = (1-np.exp(-4*tau))/(4*tau)
+        if include_SSA:
+            tau = self.calc_tau_SSA(lc.t, nu_GHz)
+            abs_fac = (1-np.exp(-4*tau))/(4*tau)
 
-        lc.lum *= abs_fac
+            lc.lum *= abs_fac
 
         return lc
         
@@ -650,3 +698,61 @@ def estimate_rho(L_p, R, f_R, nu_GHz, eps_B=0.1, f_NT=1.):
     return rho
 
 
+
+
+def tutorial_code():
+    # Define a CSM shell
+    
+    # ... by parameters "native" to HNK16
+    #f_R = 1              # fractional width of the shell
+    #rho = 1e-17          # shell density
+    #t_imp = 60*C.DAY2SEC # impact time in seconds
+    # ultimately you probably want to do something like this:
+    pars = dict(f_R=1, rho=1e-17, t_imp=60*C.DAY2SEC)
+
+    # ... by parameters "native" to your problem
+    #f_R = 0.1
+    #mass = 0.1*C.M_SUN # shell mass (g)
+    #R_in = 1e16        # shell inner radius
+
+    # ... by parameters "native" to your observations (e.g., PTF11kx)
+    #t_imp = 50*C.DAY2SEC    # impact time 
+    #t_cross = 500*C.DAY2SEC # time the shock crosses the shell
+    #rho = 1e-18             # shell density
+
+    # ... or even like this
+    #mass = 0.1*C.M_SUN
+    #rho = 1e-18
+    #t_imp = 50*C.DAY2SEC
+
+    # Initialize your shell
+    csm = Shell(**pars) 
+    # calling it this way will try to fill in missing CSM properties -
+    # set do_fill=False if you don't want it to try.
+    # If you define times, make sure they're in seconds!
+    
+
+    # It's a good idea to check if this shell satisfies the hydrodynamic
+    # assumptions of HNK16:
+    print(f'OK to use this CSM: {csm.valid}')
+
+    # Now you can go ahead and get a light-curve
+    # units are erg/s/Hz
+    
+    # Need the optically thin peak luminosity    
+    L_p = csm.estimate_Lp(nu_GHz=6) 
+
+    # Maybe check optical depth to choose which type of light-curve to calculate
+    tau_at_breakout = csm.tau_at_tx()
+    
+    # Optically thin light-curve
+    #lc = csm.make_thin_LC(L_p)
+    # Optically thick light-curve
+    lc = csm.make_LC(L_p)     # optically thick light-curve
+
+    # You can plot this like
+    #import matplotlib.pyplot as plt
+    #plt.loglog(lc.t, lc.lum)
+
+if __name__=='__main__':
+    print('Look at the tutorial_code function to get started!')
