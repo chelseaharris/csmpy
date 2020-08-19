@@ -214,38 +214,31 @@ class Shell(object):
         self._have_props = {}
         # Set everything according to user inputs
         if f_R:
-            self.f_R = f_R
-            self._have_props['f'] = 1
+            self.set_f_R(f_R)
         else:
             self._have_props['f'] = 0
         if rho:
-            self.rho = rho
-            self._have_props['rho'] = 1            
+            self.set_rho(rho)
         else:
             self._have_props['rho'] = 0
         if mass:
-            self.mass = mass
-            self._have_props['M'] = 1            
+            self.set_mass(mass)
         else:
             self._have_props['M'] = 0
         if R_in:
-            self.R_in = R_in
-            self._have_props['Ri'] = 1
+            self.set_R_in(R_in)
         else:
             self._have_props['Ri'] = 0
         if R_out:
-            self.R_out = R_out
-            self._have_props['Ro'] = 1
+            self.set_R_out(R_out)
         else:
             self._have_props['Ro'] = 0
         if t_imp:
-            self.t_imp = t_imp
-            self._have_props['ti'] = 1
+            self.set_t_imp(t_imp)
         else:
             self._have_props['ti'] = 0
         if t_cross:
-            self.t_x = t_cross
-            self._have_props['tx'] = 1
+            self.set_t_x(t_cross)
         else:
             self._have_props['tx'] = 0
 
@@ -267,14 +260,48 @@ class Shell(object):
                 self._calc_mass()
 
         # Check model hydrodynamic assumptions
-        try:
+        self.set_valid()
+    
+    
+    def set_f_R(self, f_R):
+        self.f_R = f_R
+        self._have_props['f'] = 1
+
+    def set_rho(self, rho):
+        self.rho = rho
+        self._have_props['rho'] = 1
+    
+    def set_mass(self, mass):
+        self.mass = mass
+        self._have_props['M'] = 1
+
+    def set_R_in(self, R_in):
+        self.R_in = R_in
+        self._have_props['Ri'] = 1
+
+    def set_R_out(self, R_out):
+        self.R_out = R_out
+        self._have_props['Ro'] = 1
+
+    def set_t_imp(self, t_imp):
+        self.t_imp = t_imp
+        self._have_props['ti'] = 1
+
+    def set_t_x(self, t_x):
+        self.t_x = t_x
+        self._have_props['tx'] = 1
+
+    def set_valid(self):
+        try: 
             is_good = self._check_in_outer_ejecta()
             is_good = is_good & self._check_likely_adiabatic()
+            is_good = is_good & self._check_ejecta_speed()
+
             self.valid = is_good
         except:
             self.valid = False
         
-
+        
     def _apply_thickness_relation(self):
         """
         HNK16 Eqn 3
@@ -472,15 +499,15 @@ class Shell(object):
     #
     def _check_in_outer_ejecta(self):
         r_t = ckt.calc_r_t(self.t_imp, 10, delta=1, M_ej=1.38*C.M_SUN)
-        if r_t > self.R_in:
-            return False # initial point of contact is in inner ejecta (bad)
-        else:
-            return True # initial point of contact is in outer ejecta (good)
+        return (self.R_in > r_t) # initial point of contact is in outer ejecta (good)
 
     def _check_likely_adiabatic(self):
         return (self.rho < 1e-14)
 
-        
+    def _check_ejecta_speed(self):
+        max_vej = 4.5e9
+        vej = self.R_in/self.t_imp # ejecta speed at point of impact
+        return (vej <= max_vej)
         
     # Time for forward shock to cross CSM outer edge
     def calc_x_cross(self):
@@ -687,7 +714,7 @@ class Shell(object):
             # If optical depth is very low then you can get a division by ~zero
             # issue that makes the initial absorbed LC very bright.
             # The absorbed luminosity should never be higher than the unabsorbed
-            numerical_mess = (abs_lum > lc.lum)
+            numerical_mess = (abs_lum > lc.lum) | (tau < 1e-6)
             lc.lum[~numerical_mess] = abs_lum[~numerical_mess]
 
 
